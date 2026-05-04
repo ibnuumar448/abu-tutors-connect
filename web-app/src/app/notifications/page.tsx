@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { notificationApi } from '../../services/api';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
@@ -35,13 +37,22 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
       try {
           await notificationApi.deleteNotification(id);
           setNotifications(notifications.filter(n => n._id !== id));
       } catch (err) {
           console.error('Failed to delete', err);
       }
+  };
+
+  const handleCardClick = (n: any) => {
+    if (!n.read) handleMarkAsRead(n._id);
+    if (n.type?.includes('session')) router.push('/sessions');
+    else if (n.type?.includes('payment') || n.type?.includes('wallet')) router.push('/wallet');
+    else if (n.type?.includes('message')) router.push('/messages');
+    else if (n.link) router.push(n.link);
   };
 
   const filteredNotifications = notifications.filter(n => {
@@ -95,7 +106,7 @@ export default function NotificationsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         {filteredNotifications.length > 0 ? (
           filteredNotifications.map((n: any) => (
-            <div key={n._id} className="card" style={{ opacity: n.read ? 0.7 : 1 }}>
+            <div key={n._id} className="card" style={{ opacity: n.read ? 0.7 : 1, cursor: 'pointer' }} onClick={() => handleCardClick(n)}>
               <div className="card__body" style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
                 <div style={{ flexShrink: 0 }}>
                   <span style={{ 
@@ -120,10 +131,9 @@ export default function NotificationsPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                     {!n.read && (
-                        <button className="btn btn--secondary btn--sm" onClick={() => handleMarkAsRead(n._id)}>Read</button>
+                        <button className="btn btn--secondary btn--sm" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(n._id); }}>Read</button>
                     )}
-                    <button className="btn btn--outline btn--sm" onClick={() => handleDelete(n._id)}>Dismiss</button>
-                    {n.link && <Link href={n.link} className="btn btn--primary btn--sm">View</Link>}
+                    <button className="btn btn--outline btn--sm" onClick={(e) => handleDelete(n._id, e)}>Dismiss</button>
                 </div>
               </div>
             </div>

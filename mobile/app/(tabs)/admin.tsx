@@ -5,10 +5,11 @@ import {
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { adminApi } from '../../services/api';
+import { adminApi, messageApi } from '../../services/api';
 import { getImageUrl } from '../../utils/image';
+import { router } from 'expo-router';
 
-type AdminTab = 'tutors' | 'users' | 'finances';
+type AdminTab = 'tutors' | 'users' | 'finances' | 'support';
 
 export default function AdminScreen() {
   const [activeTab, setActiveTab] = useState<AdminTab>('tutors');
@@ -17,6 +18,7 @@ export default function AdminScreen() {
   const [pendingTutors, setPendingTutors] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [finances, setFinances] = useState<any>(null);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Document Viewer Modal
@@ -26,14 +28,16 @@ export default function AdminScreen() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tutorsRes, usersRes, financesRes] = await Promise.all([
+      const [tutorsRes, usersRes, financesRes, messagesRes] = await Promise.all([
         adminApi.getPendingTutors(),
         adminApi.getAllUsers(),
         adminApi.getFinances(),
+        messageApi.getConversations(),
       ]);
       setPendingTutors(tutorsRes.data);
       setUsers(usersRes.data);
       setFinances(financesRes.data);
+      setSupportMessages(messagesRes.data);
     } catch (err) {
       console.error('Admin data fetch error:', err);
       Alert.alert('Error', 'Failed to load admin data');
@@ -193,17 +197,56 @@ export default function AdminScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={[styles.statusToggle, { backgroundColor: u.isApproved ? '#FEE2E2' : '#DCFCE7' }]}
-            onPress={() => toggleUserStatus(u._id, u.isApproved)}
-            disabled={u.role === 'admin'}
-          >
-            <Text style={{ color: u.isApproved ? Colors.danger : Colors.success, fontWeight: '700', fontSize: 12 }}>
-              {u.isApproved ? 'Suspend' : 'Activate'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.actionRowVertical}>
+            <TouchableOpacity 
+              style={[styles.statusToggle, { backgroundColor: u.isApproved ? '#FEE2E2' : '#DCFCE7' }]}
+              onPress={() => toggleUserStatus(u._id, u.isApproved)}
+              disabled={u.role === 'admin'}
+            >
+              <Text style={{ color: u.isApproved ? Colors.danger : Colors.success, fontWeight: '700', fontSize: 12 }}>
+                {u.isApproved ? 'Suspend' : 'Activate'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.statusToggle, { backgroundColor: '#E0E7FF', marginTop: 6 }]}
+              onPress={() => router.push(`/chat/${u._id}`)}
+            >
+              <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 12 }}>
+                Message
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ))}
+    </View>
+  );
+
+  const renderSupport = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Messages & Support</Text>
+      {supportMessages.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Ionicons name="chatbubbles-outline" size={48} color={Colors.border} />
+          <Text style={styles.emptyText}>No messages yet.</Text>
+        </View>
+      ) : (
+        supportMessages.map((msg: any) => {
+          const partner = msg.partner;
+          const lastMsg = msg.lastMessage;
+          if (!partner || !lastMsg) return null;
+          return (
+            <TouchableOpacity key={partner._id} style={styles.userRow} onPress={() => router.push(`/chat/${partner._id}`)}>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{partner.name} <Text style={{fontSize: 12, color: Colors.textMuted}}>({partner.role})</Text></Text>
+                <Text style={styles.userEmail} numberOfLines={1}>{lastMsg.content}</Text>
+              </View>
+              <Text style={{ fontSize: 11, color: Colors.textMuted }}>
+                {new Date(lastMsg.createdAt).toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+          );
+        })
+      )}
     </View>
   );
 
@@ -241,7 +284,7 @@ export default function AdminScreen() {
       {renderStats()}
 
       <View style={styles.tabContainer}>
-        {(['tutors', 'users', 'finances'] as AdminTab[]).map(tab => (
+        {(['tutors', 'users', 'support', 'finances'] as AdminTab[]).map(tab => (
           <TouchableOpacity 
             key={tab} 
             style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]} 
@@ -260,6 +303,7 @@ export default function AdminScreen() {
       >
         {activeTab === 'tutors' && renderPendingTutors()}
         {activeTab === 'users' && renderUserManagement()}
+        {activeTab === 'support' && renderSupport()}
         {activeTab === 'finances' && renderFinances()}
         
         <View style={{ height: 100 }} />
@@ -333,7 +377,8 @@ const styles = StyleSheet.create({
   userRole: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
   dot: { fontSize: 12, color: Colors.border },
   userStatus: { fontSize: 11, fontWeight: '700' },
-  statusToggle: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.sm },
+  statusToggle: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  actionRowVertical: { flexDirection: 'column', gap: 4 },
   
   financeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   finBox: { width: '48%', backgroundColor: Colors.card, padding: 16, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },

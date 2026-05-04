@@ -75,33 +75,30 @@ export default function TabLayout() {
           name="tutors"
           options={{
             title: 'Tutors',
-            href: !isAdmin ? undefined : null,
+            href: (user?.role === 'tutee') ? undefined : null, // Show only for students
             tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="ai-match"
           options={{
-            title: 'AI Match',
-            href: !isAdmin ? undefined : null,
-            tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} />,
-          }}
-        />
-        {/* Dashboard for tutors, Sessions for students */}
-        <Tabs.Screen
-          name="dashboard"
-          options={{
-            title: 'Dashboard',
-            href: isTutor ? undefined : null,   // show for tutors, hide for students/admin
-            tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="sessions"
           options={{
             title: 'Sessions',
-            href: (user?.role === 'tutee') ? undefined : null,  // show for students only
+            href: !isAdmin ? undefined : null,  // show for both tutors and students
             tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            title: 'Wallet',
+            href: !isAdmin ? undefined : null,  // show for tutors and students
+            tabBarIcon: ({ color, size }) => <Ionicons name="wallet" size={size} color={color} />,
           }}
         />
         <Tabs.Screen

@@ -1,7 +1,17 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        return process.env.NEXT_PUBLIC_API_URL;
+    }
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:5001/api`;
+    }
+    return 'http://localhost:5001/api';
+};
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api',
+    baseURL: getBaseUrl(),
     headers: {
         // Axios will automatically set Content-Type to multipart/form-data when sending FormData
     },
@@ -30,7 +40,8 @@ api.interceptors.response.use(
     (error) => {
         if (!error.response) {
             // This is a Network Error (server down, CORS, etc.)
-            console.error('API Network Error - Check if backend is running on port 5001:', error.message);
+            const targetUrl = error.config ? `${error.config.baseURL}${error.config.url}` : 'unknown';
+            console.error(`API Network Error - Check if backend is reachable at ${targetUrl}:`, error.message);
             // Optionally, we could trigger a global alert here
         }
         return Promise.reject(error);
@@ -60,6 +71,12 @@ export const userApi = {
 
     // Get basic public profile for any user (Private)
     getUserPublicProfile: (id: string) => api.get(`/users/profile/${id}`),
+
+    // Get system admin ID
+    getAdminId: () => api.get('/users/admin-id'),
+
+    // Apply for new courses
+    applyCourse: (data: FormData) => api.post('/users/apply-course', data),
 };
 
 export const sessionApi = {
@@ -96,7 +113,13 @@ export const adminApi = {
     getPendingTutors: () => api.get('/admin/pending-tutors'),
     
     // Approve or reject tutor
-    approveTutor: (id: string, status: 'approve' | 'reject') => api.put(`/admin/tutors/${id}/approve`, { status }),
+    approveTutor: (id: string, status: 'approve' | 'reject' | 'needs_revision', feedback?: string) => 
+        api.put(`/admin/tutors/${id}/approve`, { status, feedback }),
+    
+    // Course Applications
+    getPendingCourseApplications: () => api.get('/admin/course-applications'),
+    processCourseApplication: (userId: string, appId: string, status: 'approved' | 'rejected', feedback?: string) => 
+        api.put(`/admin/course-applications/${userId}/${appId}`, { status, feedback }),
     
     // Settings
     getSettings: () => api.get('/admin/settings'),

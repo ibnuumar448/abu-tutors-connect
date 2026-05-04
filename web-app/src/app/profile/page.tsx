@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { userApi, bankApi, walletApi, adminApi } from '../../services/api';
+import { userApi, bankApi, walletApi, adminApi, messageApi } from '../../services/api';
 import { universityData } from '../../data/universityData';
 import { getImageUrl } from '../../utils/image';
+import CourseApplicationModal from '../../components/CourseApplicationModal';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -12,6 +13,12 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  
+  // Support Modal
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [supportMsg, setSupportMsg] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
   
   // Multi-step Wizard State for Tutors
   const [currentStep, setCurrentStep] = useState(1);
@@ -205,6 +212,24 @@ export default function ProfilePage() {
         alert(`Upload Failed: ${msg}`);
     } finally {
         setSaving(false);
+    }
+  };
+
+  const handleContactSupport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportMsg.trim()) return;
+    setSendingSupport(true);
+    try {
+        const res = await userApi.getAdminId();
+        const adminId = res.data._id;
+        await messageApi.sendMessage({ receiverId: adminId, content: supportMsg });
+        alert('Message sent to Support! We will reply shortly.');
+        setShowSupportModal(false);
+        setSupportMsg('');
+    } catch (err: any) {
+        alert(err.response?.data?.message || 'Failed to send message');
+    } finally {
+        setSendingSupport(false);
     }
   };
 
@@ -573,7 +598,18 @@ export default function ProfilePage() {
         {user.role !== 'tutee' && (
           <div className="card" style={{ marginTop: 'var(--space-4)' }}>
             <div className="card__body">
-              <h2 className="section-header__title" style={{ marginBottom: 'var(--space-4)' }}>Teaching Profile</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                <h2 className="section-header__title" style={{ margin: 0 }}>Teaching Profile</h2>
+                {user.isApproved && (
+                  <button 
+                    onClick={() => setShowCourseModal(true)} 
+                    className="btn btn--primary btn--sm"
+                    style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+                  >
+                    + Apply for New Course
+                  </button>
+                )}
+              </div>
 
               {/* Courses */}
               <div style={{ marginBottom: '20px' }}>
@@ -615,11 +651,50 @@ export default function ProfilePage() {
         )}
 
         {/* Quick Actions */}
-        <div style={{ marginTop: 'var(--space-4)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+        <div style={{ marginTop: 'var(--space-4)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 'var(--space-2)' }}>
           <button onClick={() => router.push('/wallet')} className="btn btn--secondary">Wallet</button>
           <button onClick={() => router.push('/my-sessions')} className="btn btn--secondary">My Sessions</button>
+          <button onClick={() => setShowSupportModal(true)} className="btn btn--secondary" style={{ color: 'var(--primary-color)' }}>Support</button>
         </div>
       </div>
+
+      {showSupportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+            <div className="card__body">
+              <h3 style={{ marginBottom: '16px' }}>Contact Support</h3>
+              <form onSubmit={handleContactSupport}>
+                <div className="form-group">
+                  <label className="form-label">Message</label>
+                  <textarea 
+                    className="form-input" 
+                    value={supportMsg} 
+                    onChange={e => setSupportMsg(e.target.value)} 
+                    rows={4} 
+                    placeholder="Describe your issue or question..." 
+                    required 
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button type="button" className="btn btn--secondary" onClick={() => setShowSupportModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn--primary" disabled={sendingSupport}>
+                    {sendingSupport ? 'Sending...' : 'Send Message'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CourseApplicationModal 
+        isOpen={showCourseModal}
+        onClose={() => setShowCourseModal(false)}
+        onSuccess={() => {
+            alert('Your application for new courses has been submitted and is awaiting review.');
+            window.location.reload();
+        }}
+      />
     </main>
   );
 }

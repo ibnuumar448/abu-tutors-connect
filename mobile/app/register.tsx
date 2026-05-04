@@ -164,19 +164,21 @@ export default function RegisterScreen() {
           </View>
 
           {/* Photo Upload */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Profile Picture (Max 1MB) {role === 'tutee' ? '*' : '(Optional)'}</Text>
-            <TouchableOpacity style={styles.photoPicker} onPress={pickImage}>
-              {profilePicture ? (
-                <Image source={{ uri: profilePicture.uri }} style={styles.previewImage} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Ionicons name="camera-outline" size={32} color={Colors.textMuted} />
-                  <Text style={styles.photoPlaceholderText}>Upload Photo</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+          {role === 'tutee' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Profile Picture (Max 1MB) *</Text>
+              <TouchableOpacity style={styles.photoPicker} onPress={pickImage}>
+                {profilePicture ? (
+                  <Image source={{ uri: profilePicture.uri }} style={styles.previewImage} />
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    <Ionicons name="camera-outline" size={32} color={Colors.textMuted} />
+                    <Text style={styles.photoPlaceholderText}>Upload Photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name *</Text>

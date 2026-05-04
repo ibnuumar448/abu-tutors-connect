@@ -7,9 +7,9 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
-import { walletApi, bankApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { Colors, Spacing, Radius, FontSize } from '../constants/Colors';
+import { walletApi, bankApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { Colors, Spacing, Radius, FontSize } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
@@ -56,8 +56,13 @@ export default function WalletScreen() {
   const fetchBanks = async () => {
     try {
       const res = await bankApi.getBanks();
-      setBanks(res.data);
-    } catch {}
+      if (res.data && res.data.length === 0) {
+        Alert.alert('Network Error', 'Could not connect to Paystack to load banks. Please check your internet connection.');
+      }
+      setBanks(res.data || []);
+    } catch {
+      Alert.alert('Network Error', 'Could not connect to Paystack to load banks. Please check your internet connection.');
+    }
   };
 
   useEffect(() => { 
@@ -158,7 +163,9 @@ export default function WalletScreen() {
 
   const balance = wallet?.balance ?? 0;
   const escrow = wallet?.escrowBalance ?? 0;
-  const transactions = wallet?.transactions ?? [];
+  const transactions = [...(wallet?.transactions ?? [])].sort(
+    (a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -340,16 +347,24 @@ export default function WalletScreen() {
               )}
 
               <Text style={styles.inputLabel}>Account Number</Text>
-              <TextInput 
-                style={styles.modalInputSmall} 
-                value={accountNumber} 
-                onChangeText={setAccountNumber} 
-                keyboardType="numeric" 
-                maxLength={10} 
-                onBlur={handleVerifyAccount}
-                placeholder="0123456789"
-              />
-              {verifyingAccount && <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 5 }} />}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput 
+                  style={[styles.modalInputSmall, { flex: 1 }]} 
+                  value={accountNumber} 
+                  onChangeText={(val) => { setAccountNumber(val); setAccountName(''); }} 
+                  keyboardType="numeric" 
+                  maxLength={10} 
+                  placeholder="0123456789"
+                />
+                <TouchableOpacity 
+                  style={{ backgroundColor: Colors.primaryLight, paddingHorizontal: 15, justifyContent: 'center', borderRadius: 14, borderWidth: 1.5, borderColor: Colors.primary, opacity: (accountNumber.length < 10 || !selectedBank) ? 0.5 : 1 }}
+                  onPress={handleVerifyAccount}
+                  disabled={verifyingAccount || accountNumber.length < 10 || !selectedBank}
+                >
+                  <Text style={{ color: Colors.primary, fontWeight: '800' }}>Verify</Text>
+                </TouchableOpacity>
+              </View>
+              {verifyingAccount && <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 8, alignSelf: 'flex-start' }} />}
               {accountName ? <Text style={styles.verifiedName}>✓ {accountName}</Text> : null}
 
               <Text style={[styles.inputLabel, { marginTop: 15 }]}>Amount to Withdraw</Text>

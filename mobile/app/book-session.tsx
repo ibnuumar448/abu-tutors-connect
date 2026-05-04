@@ -57,7 +57,7 @@ export default function BookSessionScreen() {
     if (diff <= 0) diff += 7;
     targetDate.setDate(targetDate.getDate() + diff);
     
-    const dateStr = targetDate.toISOString().split('T')[0];
+    const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
     const timeStr = slot;
 
     // Lock Slot
@@ -139,25 +139,51 @@ export default function BookSessionScreen() {
             {(!tutor?.availability || tutor.availability.length === 0) ? (
               <Text style={styles.emptyText}>Tutor hasn't set their availability yet.</Text>
             ) : (
-              tutor.availability.map((avail: any, idx: number) => (
-                <View key={idx} style={styles.dayGroup}>
-                  <Text style={styles.dayTitle}>{avail.day}</Text>
-                  <View style={styles.slotsGrid}>
-                    {avail.slots.map((slot: string) => {
-                      const isSelected = selectedTime === slot && selectedDate !== '';
-                      return (
-                        <TouchableOpacity 
-                          key={slot} 
-                          style={[styles.slotBtn, isSelected && styles.slotBtnActive]}
-                          onPress={() => handleSlotSelect(avail.day, slot)}
-                        >
-                          <Text style={[styles.slotText, isSelected && styles.slotTextActive]}>{slot}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+              tutor.availability.map((avail: any, idx: number) => {
+                const dayMap: any = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+                const targetDate = new Date();
+                const targetDay = dayMap[avail.day];
+                const currentDay = targetDate.getDay();
+                let diff = targetDay - currentDay;
+                if (diff <= 0) diff += 7;
+                targetDate.setDate(targetDate.getDate() + diff);
+                const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+
+                return (
+                  <View key={idx} style={styles.dayGroup}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={styles.dayTitle}>{avail.day}</Text>
+                      <Text style={{ fontSize: 12, color: Colors.textMuted }}>{targetDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
+                    </View>
+                    <View style={styles.slotsGrid}>
+                      {avail.slots.map((slot: string) => {
+                        const fullSlot = `${dateStr}T${slot}`;
+                        const isOccupied = tutor.occupiedSlots?.includes(fullSlot);
+                        const isSelected = selectedTime === slot && selectedDate === dateStr;
+                        
+                        return (
+                          <TouchableOpacity 
+                            key={slot} 
+                            disabled={isOccupied}
+                            style={[
+                                styles.slotBtn, 
+                                isSelected && styles.slotBtnActive,
+                                isOccupied && { backgroundColor: '#f0f0f0', borderColor: '#e0e0e0' }
+                            ]}
+                            onPress={() => handleSlotSelect(avail.day, slot)}
+                          >
+                            <Text style={[
+                                styles.slotText, 
+                                isSelected && styles.slotTextActive,
+                                isOccupied && { color: '#bbb', textDecorationLine: 'line-through' }
+                            ]}>{slot}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
 
             {selectedDate !== '' && (

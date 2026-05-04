@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { adminApi, userApi, walletApi, bankApi } from '../../services/api';
+import { adminApi, userApi, walletApi, bankApi, messageApi } from '../../services/api';
 import { getImageUrl } from '../../utils/image';
 
 export default function AdminDashboard() {
@@ -15,8 +15,10 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [courseApplications, setCourseApplications] = useState<any[]>([]);
   const [finances, setFinances] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'tutors' | 'users' | 'marketplace' | 'logs' | 'sessions' | 'finances' | 'settings' | 'venues'>('tutors');
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'tutors' | 'course_apps' | 'users' | 'marketplace' | 'logs' | 'sessions' | 'finances' | 'settings' | 'venues' | 'support'>('tutors');
   
   // Settings Form
   const [maxHourlyRate, setMaxHourlyRate] = useState(0);
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
   const [isRegistrationFree, setIsRegistrationFree] = useState(false);
   const [platformCommission, setPlatformCommission] = useState(10);
   const [noShowPayout, setNoShowPayout] = useState(30);
+  const [defaultHourlyRate, setDefaultHourlyRate] = useState(500);
 
   // Admin Profile/Financial Security
   const [adminUser, setAdminUser] = useState<any>(null);
@@ -77,8 +80,9 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tutorsRes, settingsRes, venuesRes, usersRes, logsRes, sessionsRes, financesRes, profileRes, banksRes] = await Promise.all([
+      const [tutorsRes, courseAppsRes, settingsRes, venuesRes, usersRes, logsRes, sessionsRes, financesRes, profileRes, banksRes, messagesRes] = await Promise.all([
         adminApi.getPendingTutors().catch(() => ({ data: [] })),
+        adminApi.getPendingCourseApplications().catch(() => ({ data: [] })),
         adminApi.getSettings().catch(() => ({ data: {} })),
         adminApi.getVenues().catch(() => ({ data: [] })),
         adminApi.getAllUsers().catch(() => ({ data: [] })),
@@ -86,10 +90,12 @@ export default function AdminDashboard() {
         adminApi.getAllSessions().catch(() => ({ data: [] })),
         adminApi.getFinances().catch(() => ({ data: {} })),
         userApi.getProfile().catch(() => ({ data: {} })),
-        bankApi.getBanks().catch(() => ({ data: [] }))
+        bankApi.getBanks().catch(() => ({ data: [] })),
+        messageApi.getChatList().catch(() => ({ data: [] }))
       ]);
 
       setPendingTutors(tutorsRes.data || []);
+      setCourseApplications(courseAppsRes.data || []);
       setSettings(settingsRes.data || {});
       setVenues(venuesRes.data || []);
       setUsers(usersRes.data || []);
@@ -98,6 +104,7 @@ export default function AdminDashboard() {
       setFinances(financesRes.data || {});
       setAdminUser(profileRes.data || {});
       setBanks(banksRes.data || []);
+      setSupportMessages(messagesRes.data || []);
       
       if (settingsRes.data) {
         setMaxHourlyRate(settingsRes.data.maxHourlyRate || 0);
@@ -107,6 +114,7 @@ export default function AdminDashboard() {
         setIsRegistrationFree(!!settingsRes.data.isRegistrationFree);
         setPlatformCommission(settingsRes.data.platformCommissionPercent || 10);
         setNoShowPayout(settingsRes.data.noShowPayoutPercent || 30);
+        setDefaultHourlyRate(settingsRes.data.defaultHourlyRate || 500);
       }
       
       setLoading(false);
@@ -116,11 +124,38 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleApprove = async (id: string, status: 'approve' | 'reject') => {
-    if (!confirm(`Are you sure you want to ${status} this tutor?`)) return;
+  const handleApprove = async (id: string, status: 'approve' | 'reject' | 'needs_revision') => {
+    let feedback = '';
+    if (status === 'reject' || status === 'needs_revision') {
+      feedback = prompt(`Enter feedback/reason for ${status.replace('_', ' ')}:`) || '';
+      if (!feedback && status === 'needs_revision') {
+        alert('Feedback is required for revision requests.');
+        return;
+      }
+    } else {
+      if (!confirm(`Are you sure you want to approve this tutor?`)) return;
+    }
+
     try {
-      await adminApi.approveTutor(id, status);
-      alert(`Tutor ${status}d successfully`);
+      await adminApi.approveTutor(id, status, feedback);
+      alert(`Tutor ${status.replace('_', ' ')}d successfully`);
+      fetchData();
+    } catch (err) {
+      alert('Action failed');
+    }
+  };
+
+  const handleProcessCourseApp = async (userId: string, appId: string, status: 'approved' | 'rejected') => {
+    let feedback = '';
+    if (status === 'rejected') {
+      feedback = prompt('Enter reason for rejection:') || '';
+    } else {
+      if (!confirm('Approve these new courses for the tutor?')) return;
+    }
+
+    try {
+      await adminApi.processCourseApplication(userId, appId, status, feedback);
+      alert(`Course application ${status} successfully`);
       fetchData();
     } catch (err) {
       alert('Action failed');
@@ -137,7 +172,8 @@ export default function AdminDashboard() {
         minRatingForVerify: minRating,
         isRegistrationFree,
         platformCommissionPercent: platformCommission,
-        noShowPayoutPercent: noShowPayout
+        noShowPayoutPercent: noShowPayout,
+        defaultHourlyRate
       });
       alert('Settings updated');
     } catch (err) {
@@ -282,6 +318,8 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', flexWrap: 'wrap' }}>
           {[
             { id: 'tutors', label: `Pending Tutors (${pendingTutors.length})` },
+            { id: 'course_apps', label: `Course Apps (${courseApplications.length})` },
+            { id: 'support', label: `Messages & Support (${supportMessages.filter((m: any) => m.unreadCount > 0).length || 0})` },
             { id: 'marketplace', label: 'Marketplace' },
             { id: 'users', label: 'User Mgmt' },
             { id: 'sessions', label: 'Sessions' },
@@ -313,30 +351,134 @@ export default function AdminDashboard() {
               {pendingTutors.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#64748B', marginTop: '40px' }}>No tutors awaiting approval.</p>
               ) : (
-                <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-                  {pendingTutors.map((tutor) => (
-                    <div key={tutor._id} className="card" style={{ border: '1px solid #E2E8F0' }}>
-                      <div className="card__body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="card" style={{ border: '1px solid #E2E8F0', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #E2E8F0', textAlign: 'left', backgroundColor: '#F8FAFC' }}>
+                        <th style={{ padding: 'var(--space-3)' }}>Tutor Profile</th>
+                        <th style={{ padding: 'var(--space-3)' }}>Documents</th>
+                        <th style={{ padding: 'var(--space-3)' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingTutors.map((tutor) => (
+                        <tr key={tutor._id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ fontWeight: 'bold' }}>{tutor.name}</div>
+                            <div style={{ fontSize: '12px', color: '#64748B' }}>{tutor.registrationNumber} · {tutor.faculty}</div>
+                          </td>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                              {tutor.documents?.admissionLetter ? (
+                                <a href={getImageUrl(tutor.documents.admissionLetter)} target="_blank" className="btn btn--secondary btn--sm" rel="noreferrer">Admission</a>
+                              ) : (
+                                <span style={{ fontSize: '12px', color: '#94A3B8', padding: '4px 8px' }}>No Admission</span>
+                              )}
+                              {tutor.documents?.transcript ? (
+                                <a href={getImageUrl(tutor.documents.transcript)} target="_blank" className="btn btn--secondary btn--sm" rel="noreferrer">Transcript</a>
+                              ) : (
+                                <span style={{ fontSize: '12px', color: '#94A3B8', padding: '4px 8px' }}>No Result</span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => handleApprove(tutor._id, 'approve')} className="btn btn--primary btn--sm" style={{ backgroundColor: 'var(--success-green)', color: 'white' }}>Approve</button>
+                              <button onClick={() => handleApprove(tutor._id, 'needs_revision')} className="btn btn--secondary btn--sm" style={{ color: 'var(--primary-color)' }}>Revision</button>
+                              <button onClick={() => handleApprove(tutor._id, 'reject')} className="btn btn--secondary btn--sm" style={{ color: '#DC2626' }}>Reject</button>
+                              <button 
+                                onClick={() => {
+                                  setMsgUser(tutor);
+                                  setShowMsgModal(true);
+                                }}
+                                className="btn btn--secondary btn--sm"
+                                style={{ color: 'var(--primary-color)' }}
+                              >
+                                ✉️ Msg
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'course_apps' && (
+            <div>
+              <h2 className="section-header__title" style={{ marginBottom: 'var(--space-4)' }}>New Course Applications</h2>
+              {courseApplications.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#64748B', marginTop: '40px' }}>No new course applications.</p>
+              ) : (
+                <div className="card" style={{ border: '1px solid #E2E8F0', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #E2E8F0', textAlign: 'left', backgroundColor: '#F8FAFC' }}>
+                        <th style={{ padding: 'var(--space-3)' }}>Tutor</th>
+                        <th style={{ padding: 'var(--space-3)' }}>New Courses</th>
+                        <th style={{ padding: 'var(--space-3)' }}>Transcript</th>
+                        <th style={{ padding: 'var(--space-3)' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courseApplications.map((app) => (
+                        <tr key={app._id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ fontWeight: 'bold' }}>{app.userName}</div>
+                            <div style={{ fontSize: '12px', color: '#64748B' }}>{app.registrationNumber}</div>
+                          </td>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {app.courses.map((c: string) => (
+                                <span key={c} style={{ fontSize: '11px', background: '#E2E8F0', padding: '2px 6px', borderRadius: '4px' }}>{c}</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <a href={getImageUrl(app.transcript)} target="_blank" className="btn btn--secondary btn--sm" rel="noreferrer">View Transcript</a>
+                          </td>
+                          <td style={{ padding: 'var(--space-3)' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => handleProcessCourseApp(app.userId, app._id, 'approved')} className="btn btn--primary btn--sm" style={{ backgroundColor: 'var(--success-green)', color: 'white' }}>Approve</button>
+                              <button onClick={() => handleProcessCourseApp(app.userId, app._id, 'rejected')} className="btn btn--secondary btn--sm" style={{ color: '#DC2626' }}>Reject</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'support' && (
+            <div>
+              <h2 className="section-header__title" style={{ marginBottom: 'var(--space-4)' }}>Messages & Support</h2>
+              {supportMessages.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#64748B', marginTop: '40px' }}>No messages yet.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
+                  {supportMessages.map((msg: any) => (
+                    <div key={msg.partner._id} className="card" style={{ border: '1px solid #E2E8F0', cursor: 'pointer' }} onClick={() => {
+                        setMsgUser(msg.partner);
+                        setShowMsgModal(true);
+                    }}>
+                      <div className="card__body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
                         <div>
-                          <h3 style={{ margin: 0 }}>{tutor.name}</h3>
-                          <p style={{ margin: '4px 0', fontSize: '14px', color: '#64748B' }}>{tutor.registrationNumber} · {tutor.faculty}</p>
-                          <div style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' }}>
-                            {tutor.documents?.admissionLetter ? (
-                              <a href={getImageUrl(tutor.documents.admissionLetter)} target="_blank" className="btn btn--secondary btn--sm" rel="noreferrer">Admission Letter</a>
-                            ) : (
-                              <span style={{ fontSize: '12px', color: '#94A3B8', border: '1px dashed #E2E8F0', padding: '4px 8px', borderRadius: '4px' }}>No Admission Letter</span>
-                            )}
-                            
-                            {tutor.documents?.transcript ? (
-                              <a href={getImageUrl(tutor.documents.transcript)} target="_blank" className="btn btn--secondary btn--sm" rel="noreferrer">Transcript/O-Level</a>
-                            ) : (
-                              <span style={{ fontSize: '12px', color: '#94A3B8', border: '1px dashed #E2E8F0', padding: '4px 8px', borderRadius: '4px' }}>No Result/Transcript</span>
-                            )}
+                          <div style={{ fontWeight: 'bold' }}>{msg.partner.name} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 'normal' }}>({msg.partner.role})</span></div>
+                          <div style={{ fontSize: '14px', color: '#64748B', marginTop: '4px' }}>
+                            {msg.lastMessage?.content?.substring(0, 50) || 'Attachment'}...
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                          <button onClick={() => handleApprove(tutor._id, 'approve')} className="btn btn--primary btn--sm" style={{ backgroundColor: 'var(--success-green)', color: 'white' }}>Approve</button>
-                          <button onClick={() => handleApprove(tutor._id, 'reject')} className="btn btn--secondary btn--sm" style={{ color: '#DC2626' }}>Reject</button>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '12px', color: '#94A3B8' }}>{new Date(msg.lastMessage?.createdAt).toLocaleDateString()}</div>
+                          {msg.unreadCount > 0 && (
+                            <span style={{ backgroundColor: '#DC2626', color: 'white', borderRadius: '50%', padding: '2px 8px', fontSize: '12px', marginTop: '4px', display: 'inline-block' }}>{msg.unreadCount}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -755,7 +897,12 @@ export default function AdminDashboard() {
               <h2 className="section-header__title" style={{ marginBottom: 'var(--space-4)' }}>Global System Settings</h2>
               <form onSubmit={handleUpdateSettings}>
                 <div className="form-group">
-                  <label className="form-label">Max Hourly Rate (₦)</label>
+                  <label className="form-label">General Hourly Rate for New Tutors (₦)</label>
+                  <input type="number" className="form-input" value={defaultHourlyRate} onChange={(e) => setDefaultHourlyRate(Number(e.target.value))} />
+                  <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>This rate applies to all tutors until they are verified.</p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Max Hourly Rate Allowed (₦)</label>
                   <input type="number" className="form-input" value={maxHourlyRate} onChange={(e) => setMaxHourlyRate(Number(e.target.value))} />
                 </div>
                 <div className="form-group">

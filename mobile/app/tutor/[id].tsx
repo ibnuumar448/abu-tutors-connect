@@ -115,10 +115,38 @@ export default function TutorProfileScreen() {
       {/* Info */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Details</Text>
+        <InfoRow label="Hourly Rate" value={`₦${tutor.hourlyRate?.toLocaleString() || '500'}/hr`} />
         <InfoRow label="Department" value={tutor.department || '—'} />
         <InfoRow label="Level" value={tutor.level || '—'} />
         {tutor.phone && <InfoRow label="Contact" value={tutor.phone} />}
       </View>
+
+      {/* Reviews */}
+      {tutor.reviews?.length > 0 && (
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={styles.cardTitle}>Student Reviews</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="star" size={16} color={Colors.warning} />
+              <Text style={{ fontWeight: '800', marginLeft: 4 }}>{tutor.averageRating?.toFixed(1) || '0.0'}</Text>
+            </View>
+          </View>
+          {tutor.reviews.map((rev: any, idx: number) => (
+            <View key={rev._id || idx} style={styles.reviewItem}>
+              <View style={styles.reviewHeader}>
+                <Text style={styles.reviewAuthor}>{rev.tuteeId?.name || 'Anonymous Student'}</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Ionicons key={s} name="star" size={12} color={s <= rev.tuteeRating ? Colors.warning : Colors.border} />
+                  ))}
+                </View>
+              </View>
+              <Text style={styles.reviewText}>{rev.tuteeReview || 'No comment left.'}</Text>
+              <Text style={styles.reviewDate}>{new Date(rev.createdAt).toLocaleDateString()}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={{ height: 48 }} />
     </ScrollView>
@@ -198,4 +226,10 @@ const styles = StyleSheet.create({
   },
   infoLabel: { color: Colors.textSecondary, fontSize: FontSize.sm },
   infoValue: { color: Colors.textPrimary, fontWeight: '500', fontSize: FontSize.sm },
+  reviewItem: { borderBottomWidth: 1, borderBottomColor: Colors.border + '44', paddingVertical: 12 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  reviewAuthor: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.textPrimary },
+  starRow: { flexDirection: 'row', gap: 2 },
+  reviewText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },
+  reviewDate: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
 });

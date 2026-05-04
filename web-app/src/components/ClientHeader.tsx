@@ -65,16 +65,20 @@ export default function ClientHeader() {
           <span>ABUTutors</span>
         </Link>
         <nav className="app-header__nav">
-          <Link href="/" className={pathname === '/' ? 'nav-link--active' : ''}>Home</Link>
-          <Link href="/tutors" className={pathname === '/tutors' ? 'nav-link--active' : ''}>Find Tutors</Link>
-          <Link href="/ai-match" className={pathname === '/ai-match' ? 'nav-link--active' : ''}>AI Match</Link>
+          {(!isLoggedIn || user?.role !== 'admin') && (
+            <>
+              <Link href="/" className={pathname === '/' ? 'nav-link--active' : ''}>Home</Link>
+              <Link href="/tutors" className={pathname === '/tutors' ? 'nav-link--active' : ''}>Find Tutors</Link>
+              <Link href="/ai-match" className={pathname === '/ai-match' ? 'nav-link--active' : ''}>AI Match</Link>
+            </>
+          )}
           {isLoggedIn && user?.role === 'admin' && (
               <Link href="/admin" className={pathname === '/admin' ? 'nav-link--active' : ''}>Admin Panel</Link>
           )}
           {isLoggedIn && user?.role !== 'tutee' && user?.role !== 'admin' && (
               <Link href="/tutor-dashboard" className={pathname === '/tutor-dashboard' ? 'nav-link--active' : ''}>Tutor Dash</Link>
           )}
-          {isLoggedIn && (
+          {isLoggedIn && user?.role !== 'admin' && (
               <Link href="/my-sessions" className={pathname === '/my-sessions' ? 'nav-link--active' : ''}>Sessions</Link>
           )}
         </nav>
@@ -106,7 +110,11 @@ export default function ClientHeader() {
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     />
                 ) : (
-                    <span style={{ fontSize: '20px' }}>👤</span>
+                    <img 
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0D8ABC&color=fff`} 
+                        alt="Profile" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
                 )}
               </Link>
               <button onClick={handleLogout} className="btn btn--outline btn--sm">Logout</button>

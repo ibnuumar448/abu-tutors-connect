@@ -42,24 +42,27 @@ export default function AIMatch() {
 
                         {matchResult ? (
                             <div style={{ textAlign: 'center' }}>
-                                <div style={{ background: 'var(--color-primary-light)', padding: '8px 16px', borderRadius: '20px', display: 'inline-block', marginBottom: '1rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                                    ✨ {matchResult.matchScore}% Match
-                                </div>
                                 <h3 style={{ marginBottom: '1.5rem' }}>{matchResult.message}</h3>
                                 
-                                <div style={{ background: 'white', border: '1px solid #E2E8F0', padding: '1.5rem', borderRadius: '16px', textAlign: 'left' }}>
-                                    <h4 style={{ margin: 0 }}>{matchResult.tutor?.name}</h4>
-                                    <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '12px' }}>{matchResult.tutor?.faculty} | Level {matchResult.tutor?.level}</p>
-                                    
-                                    <div style={{ backgroundColor: '#F8FAFC', padding: '12px', borderRadius: '8px', marginBottom: '16px', borderLeft: '4px solid var(--color-primary)' }}>
-                                        <p style={{ margin: 0, fontSize: '14px' }}><strong>AI Reasoning:</strong> {matchResult.reasoning}</p>
-                                    </div>
+                                {matchResult.recommendations && matchResult.recommendations.map((rec: any, index: number) => (
+                                    <div key={index} style={{ background: 'white', border: '1px solid #E2E8F0', padding: '1.5rem', borderRadius: '16px', textAlign: 'left', marginBottom: '1.5rem' }}>
+                                        <div style={{ background: 'var(--color-primary-light)', padding: '4px 12px', borderRadius: '20px', display: 'inline-block', marginBottom: '1rem', color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '14px' }}>
+                                            ✨ {rec.matchScore}% Match
+                                        </div>
+                                        <h4 style={{ margin: 0 }}>{rec.tutor?.name}</h4>
+                                        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '12px' }}>{rec.tutor?.faculty} | Level {rec.tutor?.level}</p>
+                                        
+                                        <div style={{ backgroundColor: '#F8FAFC', padding: '12px', borderRadius: '8px', marginBottom: '16px', borderLeft: '4px solid var(--color-primary)' }}>
+                                            <p style={{ margin: 0, fontSize: '14px' }}><strong>AI Reasoning:</strong> {rec.reasoning}</p>
+                                        </div>
 
-                                    <button className="btn btn--primary" style={{ width: '100%' }} onClick={() => router.push(`/book-session?tutor=${matchResult.tutor?._id}`)}>
-                                        Book Session
-                                    </button>
-                                </div>
-                                <button className="btn btn--link" style={{ marginTop: '1.5rem' }} onClick={() => setMatchResult(null)}>← Search Again</button>
+                                        <button className="btn btn--primary" style={{ width: '100%' }} onClick={() => router.push(`/book-session?tutor=${rec.tutor?._id}`)}>
+                                            Book Session with {rec.tutor?.name.split(' ')[0]}
+                                        </button>
+                                    </div>
+                                ))}
+                                
+                                <button className="btn btn--link" style={{ marginTop: '0.5rem' }} onClick={() => setMatchResult(null)}>← Search Again</button>
                             </div>
                         ) : (
                             <form onSubmit={handleMatch}>

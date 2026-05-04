@@ -75,7 +75,7 @@ function BookSessionContent() {
       if (diff <= 0) diff += 7;
       targetDate.setDate(targetDate.getDate() + diff);
       
-      const dateStr = targetDate.toISOString().split('T')[0];
+      const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
       const timeStr = slot; // e.g. "14:00"
 
       setSelectedDate(dateStr);
@@ -147,30 +147,52 @@ function BookSessionContent() {
                   <p className="text-muted">Tutor hasn't set their availability matrix yet.</p>
               ) : (
                   <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-                      {tutor.availability.map((avail: any, idx: number) => (
-                          <div key={idx} style={{ padding: 'var(--space-3)', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                              <h4 style={{ margin: '0 0 12px 0', color: 'var(--primary-color)' }}>{avail.day}</h4>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                  {avail.slots.map((slot: string) => {
-                                      const isSelected = selectedTime === slot;
-                                      return (
-                                          <button 
-                                              key={slot}
-                                              onClick={() => handleSlotSelect(avail.day, slot)}
-                                              style={{ 
-                                                  padding: '6px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', 
-                                                  backgroundColor: isSelected ? 'var(--primary-color)' : 'white',
-                                                  color: isSelected ? 'white' : '#475569',
-                                                  cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s'
-                                              }}
-                                          >
-                                              {slot}
-                                          </button>
-                                      );
-                                  })}
-                              </div>
-                          </div>
-                      ))}
+                      {tutor.availability.map((avail: any, idx: number) => {
+                          const dayMap: any = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+                          const targetDate = new Date();
+                          const targetDay = dayMap[avail.day];
+                          const currentDay = targetDate.getDay();
+                          let diff = targetDay - currentDay;
+                          if (diff <= 0) diff += 7;
+                          targetDate.setDate(targetDate.getDate() + diff);
+                          const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+
+                          return (
+                            <div key={idx} style={{ padding: 'var(--space-3)', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <h4 style={{ margin: 0, color: 'var(--primary-color)' }}>{avail.day}</h4>
+                                    <span style={{ fontSize: '12px', color: '#64748B' }}>{targetDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {avail.slots.map((slot: string) => {
+                                        const fullSlot = `${dateStr}T${slot}`;
+                                        const isOccupied = tutor.occupiedSlots?.includes(fullSlot);
+                                        const isSelected = selectedTime === slot && selectedDate === dateStr;
+                                        
+                                        return (
+                                            <button 
+                                                key={slot}
+                                                disabled={isOccupied}
+                                                onClick={() => handleSlotSelect(avail.day, slot)}
+                                                style={{ 
+                                                    padding: '6px 12px', borderRadius: '6px', 
+                                                    border: isOccupied ? '1px solid #E2E8F0' : '1px solid #CBD5E1', 
+                                                    backgroundColor: isSelected ? 'var(--primary-color)' : isOccupied ? '#F1F5F9' : 'white',
+                                                    color: isSelected ? 'white' : isOccupied ? '#94A3B8' : '#475569',
+                                                    cursor: isOccupied ? 'not-allowed' : 'pointer', 
+                                                    fontSize: '14px', transition: 'all 0.2s',
+                                                    textDecoration: isOccupied ? 'line-through' : 'none'
+                                                }}
+                                                title={isOccupied ? 'This slot is already booked' : 'Click to select'}
+                                            >
+                                                {slot}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                          );
+                      })}
                   </div>
               )}
 

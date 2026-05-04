@@ -39,6 +39,18 @@ export default function NotificationsScreen() {
     } catch { }
   };
 
+  const handlePressNotification = (item: any) => {
+    if (!item.read) markRead(item._id);
+    
+    if (item.type?.includes('session')) {
+      router.push('/(tabs)/sessions');
+    } else if (item.type?.includes('payment') || item.type?.includes('wallet')) {
+      router.push('/wallet');
+    } else if (item.type?.includes('message')) {
+      router.push('/(tabs)/messages');
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const getIcon = (type: string) => {
@@ -85,7 +97,7 @@ export default function NotificationsScreen() {
             return (
               <TouchableOpacity
                 style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-                onPress={() => markRead(item._id)}
+                onPress={() => handlePressNotification(item)}
               >
                 <View style={[styles.notifIcon, { backgroundColor: icon.color + '20' }]}>
                   <Ionicons name={icon.name as any} size={22} color={icon.color} />

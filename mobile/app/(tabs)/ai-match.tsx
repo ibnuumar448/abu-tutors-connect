@@ -129,11 +129,30 @@ export default function AIMatchScreen() {
                           <Text style={styles.matchedAvatarText}>{rec.tutor.name?.charAt(0) || '?'}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.matchedName}>{rec.tutor.name || 'Tutor'}</Text>
+                          <Text style={styles.matchedName}>
+                            {rec.tutor.name || 'Tutor'} {rec.tutor.role === 'verified_tutor' && <Ionicons name="checkmark-circle" size={14} color={Colors.primary} />}
+                          </Text>
                           <Text style={styles.matchedMeta}>{rec.tutor.faculty || 'Unknown Faculty'} · Level {rec.tutor.level || '?'}</Text>
-                          <Text style={styles.matchedMeta}>Rate: ₦{rec.tutor.hourlyRate || 500}/hr · ⭐ {rec.tutor.averageRating?.toFixed(1) || '0.0'}</Text>
+                          
+                          {rec.tutor.courses && rec.tutor.courses.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                              {rec.tutor.courses.slice(0, 3).map((c: string) => (
+                                <View key={c} style={{ backgroundColor: '#F0F9FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                  <Text style={{ fontSize: 10, color: '#0369A1', fontWeight: 'bold' }}>{c}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                          
+                          {rec.tutor.matchingBio && (
+                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4, fontStyle: 'italic' }} numberOfLines={2}>
+                              "{rec.tutor.matchingBio}"
+                            </Text>
+                          )}
+
+                          <Text style={[styles.matchedMeta, { marginTop: 4 }]}>Rate: ₦{rec.tutor.hourlyRate || 500}/hr · ⭐ {rec.tutor.averageRating?.toFixed(1) || '0.0'}</Text>
                           {rec.reasoning && (
-                            <Text style={styles.reasoning}>"{rec.reasoning}"</Text>
+                            <Text style={styles.reasoning}>AI: "{rec.reasoning}"</Text>
                           )}
                         </View>
                         <View style={[styles.scoreBadge]}>

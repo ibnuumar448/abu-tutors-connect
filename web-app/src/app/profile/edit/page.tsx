@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { userApi } from '../../../services/api';
+import { universityData } from '../../../data/universityData';
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -13,17 +14,25 @@ export default function EditProfilePage() {
   const [success, setSuccess] = useState('');
 
   // Editable fields
+  const [faculty, setFaculty] = useState('');
+  const [department, setDepartment] = useState('');
   const [phone, setPhone] = useState('');
   const [level, setLevel] = useState('');
   const [courses, setCourses] = useState('');        // stored as comma-string
   const [areaOfStrength, setAreaOfStrength] = useState('');
   const [matchingBio, setMatchingBio] = useState(''); // Profile Summary
   const [about, setAbout] = useState('');
+  
+  // Document uploads for revision
+  const [admissionLetter, setAdmissionLetter] = useState<File | null>(null);
+  const [transcript, setTranscript] = useState<File | null>(null);
 
   useEffect(() => {
     userApi.getProfile().then(res => {
       const d = res.data;
       setUser(d);
+      setFaculty(d.faculty || '');
+      setDepartment(d.department || '');
       setPhone(d.phone || '');
       setLevel(d.level || '100L');
       setCourses(d.courses?.join(', ') || '');
@@ -41,13 +50,21 @@ export default function EditProfilePage() {
     setSuccess('');
     try {
       const fd = new FormData();
+      fd.append('faculty', faculty);
+      fd.append('department', department);
       fd.append('phone', phone);
       fd.append('level', level);
       fd.append('about', about);
       fd.append('areaOfStrength', areaOfStrength);
       fd.append('matchingBio', matchingBio);
-      const courseArr = courses.split(',').map(c => c.trim()).filter(Boolean);
-      fd.append('courses', JSON.stringify(courseArr));
+      
+      // If tutoring, courses are read-only here, they don't get appended from body usually
+      // unless we want to allow editing? User says should only be edited via Apply flow.
+      // So we don't append courses if role is tutor?
+      // Actually, if we don't append them, the backend might keep them as is.
+      
+      if (admissionLetter) fd.append('admissionLetter', admissionLetter);
+      if (transcript) fd.append('transcript', transcript);
 
       await userApi.updateProfile(fd);
       setSuccess('Profile updated successfully!');
@@ -74,6 +91,29 @@ export default function EditProfilePage() {
         <div className="card" style={{ marginBottom: '20px' }}>
           <div className="card__body">
             <h2 style={{ fontSize: '18px', marginBottom: '16px', color: 'var(--color-primary)' }}>General Information</h2>
+
+            <div className="form-group">
+              <label className="form-label">Faculty</label>
+              <select className="form-input" value={faculty} onChange={e => {
+                  setFaculty(e.target.value);
+                  setDepartment('');
+              }}>
+                <option value="">Select Faculty</option>
+                {universityData.faculties.map(f => (
+                  <option key={f.faculty} value={f.faculty}>{f.faculty}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <select className="form-input" value={department} onChange={e => setDepartment(e.target.value)} disabled={!faculty}>
+                <option value="">Select Department</option>
+                {faculty && universityData.faculties.find(f => f.faculty === faculty)?.departments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="form-group">
               <label className="form-label">Phone Number</label>
@@ -103,13 +143,13 @@ export default function EditProfilePage() {
 
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: 'bold' }}>Courses I Teach</label>
-                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>Enter course codes separated by commas.</p>
+                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>Course list is managed via "Apply for New Course" flow.</p>
                 <input
                   type="text"
                   className="form-input"
                   value={courses}
-                  onChange={e => setCourses(e.target.value)}
-                  placeholder="e.g. MATH101, COEN201, PHYS301"
+                  readOnly
+                  style={{ backgroundColor: '#F8FAFC', cursor: 'not-allowed' }}
                 />
               </div>
 
@@ -128,6 +168,33 @@ export default function EditProfilePage() {
                   placeholder="e.g. I specialize in Calculus and Mechanics. I explain complex topics using real-world examples and step-by-step breakdowns..."
                   style={{ minHeight: '120px', resize: 'vertical' }}
                 ></textarea>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Document Re-submission (If Revision Requested) ── */}
+        {(user.applicationStatus === 'needs_revision' || !user.isApproved) && user.role !== 'tutee' && (
+          <div className="card" style={{ marginBottom: '20px', border: user.applicationStatus === 'needs_revision' ? '1px solid #FCA5A5' : 'none' }}>
+            <div className="card__body">
+              <h2 style={{ fontSize: '18px', marginBottom: '16px', color: user.applicationStatus === 'needs_revision' ? '#B91C1C' : 'var(--color-primary)' }}>
+                {user.applicationStatus === 'needs_revision' ? 'Re-upload Documents' : 'Update Documents'}
+              </h2>
+              {user.applicationStatus === 'needs_revision' && user.adminFeedback && (
+                <div style={{ padding: '12px', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', marginBottom: '20px', fontSize: '14px' }}>
+                  <strong>Admin Feedback:</strong>
+                  <p style={{ margin: '4px 0 0', color: '#B91C1C' }}>{user.adminFeedback}</p>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Admission Letter (JPEG, Max 1MB)</label>
+                <input type="file" accept="image/jpeg, image/jpg" className="form-input" onChange={e => setAdmissionLetter(e.target.files?.[0] || null)} />
+                <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Current: <a href={user.documents?.admissionLetter} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>View File</a></p>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Result / Transcript (JPEG, Max 1MB)</label>
+                <input type="file" accept="image/jpeg, image/jpg" className="form-input" onChange={e => setTranscript(e.target.files?.[0] || null)} />
+                <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Current: <a href={user.documents?.transcript} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>View File</a></p>
               </div>
             </div>
           </div>

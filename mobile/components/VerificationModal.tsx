@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, 
   TextInput, ActivityIndicator, Alert, Dimensions,
-  Platform
+  Platform, KeyboardAvoidingView, ScrollView
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
@@ -59,8 +59,12 @@ export default function VerificationModal({
 
   return (
     <Modal visible={isOpen} animationType="slide" transparent>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+      <KeyboardAvoidingView 
+        style={styles.overlay} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
+          <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -78,18 +82,18 @@ export default function VerificationModal({
                 <ActivityIndicator size="large" color={Colors.primary} />
               )}
 
-              {pin && (
+              {pin ? (
                 <View style={styles.pinSection}>
                   <Text style={styles.subLabel}>OR USE FALLBACK PIN</Text>
                   <View style={styles.pinRow}>
-                    {pin.split('').map((char, index) => (
+                    {String(pin).split('').map((char, index) => (
                       <View key={index} style={styles.pinBox}>
                         <Text style={styles.pinText}>{char}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
-              )}
+              ) : null}
 
               <Text style={styles.hintText}>
                 Ask your tutor to scan this QR code or enter the 6-digit PIN to verify.
@@ -149,7 +153,8 @@ export default function VerificationModal({
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

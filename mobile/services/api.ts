@@ -5,8 +5,8 @@ import { Platform } from 'react-native';
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 // Web: backend is on same machine → use localhost
-// Native (phone): backend is on PC on local network → use PC's IP
-const NATIVE_URL = 'http://10.26.137.38:5001/api'; // your PC's local IP
+// Native (phone): backend is on PC on local network → // Current IP: 10.171.77.38
+const NATIVE_URL = 'http://10.171.77.38:5001/api'; // your PC's local IP
 const WEB_URL = 'http://localhost:5001/api';
 
 export const BASE_URL = Platform.OS === 'web' ? WEB_URL : NATIVE_URL;
@@ -60,6 +60,7 @@ export const userApi = {
     api.get('/users/tutors', { params }),
   getTutorById: (id: string) => api.get(`/users/tutors/${id}`),
   updateProfileData: (data: any) => api.patch('/users', data),
+  getAdminId: () => api.get('/users/admin-id'),
 };
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
@@ -86,6 +87,8 @@ export const sessionApi = {
     api.post(`/sessions/${id}/reschedule`, data),
   syncSession: (id: string, deviceTime: string) =>
     api.post(`/sessions/${id}/sync`, { deviceTime }),
+  reviewSession: (id: string, data: { rating: number; reviewText?: string }) =>
+    api.post(`/sessions/${id}/review`, data),
 };
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────
@@ -128,7 +131,7 @@ export const messageApi = {
   getConversations: () => api.get('/messages/conversations'),
   getMessages: (userId: string) => api.get(`/messages/${userId}`),
   sendMessage: (recipientId: string, content: string) =>
-    api.post('/messages', { recipientId, content }),
+    api.post('/messages', { receiverId: recipientId, content }),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -143,6 +146,8 @@ export const adminApi = {
   getAllSessions: () => api.get('/admin/sessions'),
   getFinances: () => api.get('/admin/finances'),
   getVenues: () => api.get('/admin/venues'),
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (data: any) => api.post('/admin/settings', data)
 };
 
 // ─── Token helpers ────────────────────────────────────────────────────────────

@@ -3,35 +3,56 @@
 import React, { useState, useEffect } from 'react';
 import { statsApi, sessionApi, userApi, adminApi, paymentApi } from '../../services/api';
 import QRModal from '../../components/QRModal';
+import CourseApplicationModal from '../../components/CourseApplicationModal';
 import Link from 'next/link';
 import { getImageUrl } from '../../utils/image';
 
 // --- Sub-component for Tutor Onboarding (Phase 1 & 2) ---
 const TutorOnboarding = ({ user, onUpdate }: { user: any, onUpdate: () => void }) => {
     const isMissingInfo = !user.faculty || !user.department || !user.phone || !user.teachingLevel;
+    const isNeedsRevision = user.applicationStatus === 'needs_revision';
 
     if (user.isApproved || (user.role !== 'tutor' && user.role !== 'verified_tutor')) return null;
 
     return (
-        <div className="card" style={{ marginBottom: 'var(--space-8)', border: '2px dashed var(--primary-color)', backgroundColor: '#F8FAFC', borderRadius: '16px' }}>
+        <div className="card" style={{ 
+            marginBottom: 'var(--space-8)', 
+            border: isNeedsRevision ? '2px solid #DC2626' : '2px dashed var(--primary-color)', 
+            backgroundColor: isNeedsRevision ? '#FEF2F2' : '#F8FAFC', 
+            borderRadius: '16px' 
+        }}>
             <div className="card__body" style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ margin: 0, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        🚀 {isMissingInfo ? 'Complete Your Profile' : 'Application Pending'}
+                        {isNeedsRevision ? '🛑 Revision Required' : (isMissingInfo ? '🚀 Complete Your Profile' : '🕒 Application Pending')}
                     </h3>
-                    <span className="tutor-card__badge" style={{ backgroundColor: isMissingInfo ? '#FEF3C7' : '#E0F2FE', color: isMissingInfo ? '#92400E' : '#0369A1' }}>
-                        {isMissingInfo ? 'Action Required' : 'Under Review'}
+                    <span className="tutor-card__badge" style={{ 
+                        backgroundColor: isNeedsRevision ? '#FEE2E2' : (isMissingInfo ? '#FEF3C7' : '#E0F2FE'), 
+                        color: isNeedsRevision ? '#991B1B' : (isMissingInfo ? '#92400E' : '#0369A1') 
+                    }}>
+                        {isNeedsRevision ? 'Action Required' : (isMissingInfo ? 'Action Required' : 'Under Review')}
                     </span>
                 </div>
                 
+                {isNeedsRevision && user.adminFeedback && (
+                    <div style={{ padding: '12px', background: 'white', border: '1px solid #FCA5A5', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
+                        <strong>Feedback from Admin:</strong>
+                        <p style={{ margin: '4px 0 0', color: '#B91C1C' }}>{user.adminFeedback}</p>
+                    </div>
+                )}
+
                 <p style={{ color: '#64748B', marginBottom: '20px' }}>
-                    {isMissingInfo 
-                        ? 'Please fill in your basic information and teaching profile to become a tutor.' 
-                        : 'Your profile has been submitted for review. Once approved, you will become a "Newbie Tutor" and be able to accept bookings.'}
+                    {isNeedsRevision 
+                        ? 'The admin has requested changes to your application. Please update your documents or profile details and re-submit.' 
+                        : (isMissingInfo 
+                            ? 'Please fill in your basic information and teaching profile to become a tutor.' 
+                            : 'Your profile has been submitted for review. Once approved, you will become a "Newbie Tutor" and be able to accept bookings.')}
                 </p>
 
-                {isMissingInfo ? (
-                    <Link href="/profile" className="btn btn--primary" style={{ width: '100%' }}>Complete Profile Now</Link>
+                {(isMissingInfo || isNeedsRevision) ? (
+                    <Link href="/profile/edit" className="btn btn--primary" style={{ width: '100%' }}>
+                        {isNeedsRevision ? 'Update & Re-submit' : 'Complete Profile Now'}
+                    </Link>
                 ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#059669', fontWeight: '500', backgroundColor: '#ECFDF5', padding: '12px', borderRadius: '8px' }}>
                         <span>🕒</span>
@@ -92,6 +113,8 @@ export default function TutorDashboard() {
     sessionId: '',
     step: 'start' as 'start' | 'complete'
   });
+
+  const [showCourseModal, setShowCourseModal] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -242,6 +265,14 @@ export default function TutorDashboard() {
           <Link href="/messages" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 24px', textDecoration: 'none', color: '#64748B', fontWeight: 'normal' }}>
               Messages
           </Link>
+          {user?.isApproved && (
+              <button 
+                  onClick={() => setShowCourseModal(true)} 
+                  style={{ marginLeft: 'auto', padding: '0 20px', border: 'none', background: 'var(--primary-color)', color: 'white', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', height: '36px', alignSelf: 'center' }}
+              >
+                  + Apply for New Course
+              </button>
+          )}
       </div>
 
       {activeTab === 'sessions' && (
@@ -362,6 +393,15 @@ export default function TutorDashboard() {
         title={qrModal.title}
         onScanSuccess={(decoded) => handleVerifySuccess({ qrData: decoded })}
         onPinSubmit={(pin) => handleVerifySuccess({ pin })}
+      />
+
+      <CourseApplicationModal 
+        isOpen={showCourseModal}
+        onClose={() => setShowCourseModal(false)}
+        onSuccess={() => {
+            alert('Your application for new courses has been submitted and is awaiting review.');
+            fetchData();
+        }}
       />
     </main>
   );

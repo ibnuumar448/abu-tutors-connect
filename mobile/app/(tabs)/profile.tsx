@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
-  ActivityIndicator, Image, TextInput, Modal, RefreshControl
+  ActivityIndicator, Image, TextInput, Modal, RefreshControl,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { userApi, bankApi, walletApi, authApi } from '../../services/api';
+import { userApi, bankApi, walletApi, authApi, adminApi, messageApi } from '../../services/api';
 import { universityData } from '../../constants/universityData';
 import { getImageUrl } from '../../utils/image';
 
@@ -19,8 +20,16 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Support Modal
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportMsg, setSupportMsg] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
+
   // Wizard Steps
   const [currentStep, setCurrentStep] = useState(1);
+  const [showFacultyModal, setShowFacultyModal] = useState(false);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
   const [faculty, setFaculty] = useState('');
   const [department, setDepartment] = useState('');
   const [phone, setPhone] = useState('');
@@ -42,12 +51,14 @@ export default function ProfileScreen() {
   const [areaOfStrength, setAreaOfStrength] = useState('');
   const [matchingBio, setMatchingBio] = useState('');
   const [about, setAbout] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
 
   const [admissionLetter, setAdmissionLetter] = useState<any>(null);
   const [transcript, setTranscript] = useState<any>(null);
   const [profilePicture, setProfilePicture] = useState<any>(null);
   
   const [wallet, setWallet] = useState<any>(null);
+  const [adminSettings, setAdminSettings] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -60,7 +71,8 @@ export default function ProfileScreen() {
       setAreaOfStrength(user.areaOfStrength || '');
       setMatchingBio(user.matchingBio || '');
       setAbout(user.about || '');
-      setEmail(user.email || ''); // Added
+      setEmail(user.email || '');
+      setHourlyRate(user.hourlyRate?.toString() || '');
       
       if (user.bankDetails) {
         setBankCode(user.bankDetails.bankCode || '');
@@ -73,6 +85,7 @@ export default function ProfileScreen() {
         setCurrentStep(user.profileStep + 1 || 1);
         fetchBanks();
         fetchWallet();
+        fetchSettings();
       }
     }
   }, [user]);
@@ -89,6 +102,30 @@ export default function ProfileScreen() {
       const res = await walletApi.getWallet();
       setWallet(res.data);
     } catch {}
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await adminApi.getSettings();
+      setAdminSettings(res.data);
+    } catch {}
+  };
+
+  const handleContactSupport = async () => {
+    if (!supportMsg.trim()) return;
+    setSendingSupport(true);
+    try {
+        const res = await userApi.getAdminId();
+        const adminId = res.data._id;
+        await messageApi.sendMessage(adminId, supportMsg);
+        Alert.alert('Success', 'Message sent to Support! We will reply shortly.');
+        setShowSupportModal(false);
+        setSupportMsg('');
+    } catch (err: any) {
+        Alert.alert('Error', err.response?.data?.message || 'Failed to send message');
+    } finally {
+        setSendingSupport(false);
+    }
   };
 
   const handleVerifyAccount = async () => {
@@ -235,6 +272,8 @@ export default function ProfileScreen() {
         email, // Added
         phone,
         level,
+        faculty,
+        department,
       };
       
       if (user.role !== 'tutee' && user.role !== 'admin') {
@@ -242,6 +281,9 @@ export default function ProfileScreen() {
         updateData.matchingBio = matchingBio;
         updateData.areaOfStrength = areaOfStrength;
         updateData.courses = courses.split(',').map(c => c.trim()).filter(Boolean);
+        if (user.role === 'verified_tutor') {
+          updateData.hourlyRate = Number(hourlyRate);
+        }
       }
       
       await userApi.updateProfileData(updateData);
@@ -268,8 +310,9 @@ export default function ProfileScreen() {
   if ((user.role === 'tutor' || user.role === 'verified_tutor') && !user.isProfileComplete && user.registrationPaymentStatus === 'pending') {
     const progressPercent = (currentStep / 4) * 100;
     return (
-      <ScrollView style={styles.wizardContainer} contentContainerStyle={{ padding: Spacing.lg }}>
-        <Text style={styles.wizardTitle}>Complete Tutor Profile</Text>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView style={styles.wizardContainer} contentContainerStyle={{ padding: Spacing.lg }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.wizardTitle}>Complete Tutor Profile</Text>
         <Text style={styles.wizardSub}>Step {currentStep} of 4</Text>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
@@ -280,45 +323,25 @@ export default function ProfileScreen() {
             <Text style={styles.stepTitle}>Personal & Bank Details</Text>
             
             <Text style={styles.label}>Faculty</Text>
-            <View style={styles.pickerBox}>
-              <TextInput value={faculty} placeholder="Select faculty" editable={false} style={styles.inputReadOnly} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.facultyScroll}>
-                {universityData.faculties.map(f => (
-                  <TouchableOpacity key={f.faculty} style={[styles.pickBtn, faculty === f.faculty && styles.pickBtnActive]} onPress={() => { setFaculty(f.faculty); setDepartment(''); }}>
-                    <Text style={[styles.pickBtnText, faculty === f.faculty && styles.pickBtnTextActive]}>{f.faculty}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            <TouchableOpacity style={styles.input} onPress={() => setShowFacultyModal(true)}>
+              <Text style={{ color: faculty ? Colors.textPrimary : Colors.textMuted }}>{faculty || 'Select Faculty'}</Text>
+            </TouchableOpacity>
 
             <Text style={styles.label}>Department</Text>
-            <View style={styles.pickerBox}>
-              <TextInput value={department} placeholder="Select department" editable={false} style={styles.inputReadOnly} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.facultyScroll}>
-                {faculty && universityData.faculties.find(f => f.faculty === faculty)?.departments.map(d => (
-                  <TouchableOpacity key={d} style={[styles.pickBtn, department === d && styles.pickBtnActive]} onPress={() => setDepartment(d)}>
-                    <Text style={[styles.pickBtnText, department === d && styles.pickBtnTextActive]}>{d}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            <TouchableOpacity style={styles.input} onPress={() => {
+              if (!faculty) { Alert.alert('Select Faculty', 'Please select a faculty first.'); return; }
+              setShowDepartmentModal(true);
+            }}>
+              <Text style={{ color: department ? Colors.textPrimary : Colors.textMuted }}>{department || 'Select Department'}</Text>
+            </TouchableOpacity>
 
             <Text style={styles.label}>Phone Number</Text>
             <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="080XXXXXXXX" keyboardType="phone-pad" />
 
             <Text style={styles.label}>Bank Details (For Payouts)</Text>
-            <TouchableOpacity style={styles.input} onPress={fetchBanks}>
+            <TouchableOpacity style={styles.input} onPress={() => { fetchBanks(); setShowBankModal(true); }}>
               <Text style={{ color: bankCode ? Colors.textPrimary : Colors.textMuted }}>{bankName || 'Select Bank'}</Text>
             </TouchableOpacity>
-            {banks.length > 0 && !bankCode && (
-              <ScrollView style={styles.bankPicker}>
-                {banks.map(b => (
-                  <TouchableOpacity key={b.code} style={styles.bankItem} onPress={() => { setBankCode(b.code); setBankName(b.name); }}>
-                    <Text>{b.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
 
             <TextInput style={styles.input} value={accountNumber} onChangeText={setAccountNumber} placeholder="Account Number" keyboardType="numeric" maxLength={10} onBlur={handleVerifyAccount} />
             {verifyingAccount && <ActivityIndicator color={Colors.primary} size="small" />}
@@ -404,26 +427,37 @@ export default function ProfileScreen() {
 
         {currentStep === 4 && (
           <View style={styles.wizardStep}>
-            <Text style={styles.stepTitle}>Registration Payment</Text>
-            <View style={styles.paymentCard}>
-              <Text style={styles.paymentLabel}>Tutor Registration Fee</Text>
-              <Text style={styles.paymentAmount}>₦5,000.00</Text>
-              <Text style={styles.paymentSub}>One-time administrative charge</Text>
-            </View>
-            <View style={styles.walletInfo}>
-              <Text>Wallet Balance: ₦{wallet?.balance?.toLocaleString() || '0.00'}</Text>
-              {wallet?.balance < 5000 && (
-                <TouchableOpacity onPress={() => router.push('/wallet')}>
-                  <Text style={{ color: Colors.primary, fontWeight: '700', marginTop: 10 }}>Fund Wallet to Continue →</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <Text style={styles.stepTitle}>Registration {adminSettings?.isRegistrationFree ? 'Status' : 'Payment'}</Text>
+            
+            {adminSettings?.isRegistrationFree ? (
+              <View style={[styles.paymentCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                <Text style={[styles.paymentLabel, { color: '#166534' }]}>Registration is Currently FREE!</Text>
+                <Text style={styles.paymentSub}>The administrative fee has been waived by the admin.</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.paymentCard}>
+                  <Text style={styles.paymentLabel}>Tutor Registration Fee</Text>
+                  <Text style={styles.paymentAmount}>₦{adminSettings?.registrationFee?.toLocaleString() || '5,000'}</Text>
+                  <Text style={styles.paymentSub}>One-time administrative charge</Text>
+                </View>
+                <View style={styles.walletInfo}>
+                  <Text>Wallet Balance: ₦{wallet?.balance?.toLocaleString() || '0.00'}</Text>
+                  {wallet?.balance < (adminSettings?.registrationFee || 5000) && (
+                    <TouchableOpacity onPress={() => router.push('/wallet')}>
+                      <Text style={{ color: Colors.primary, fontWeight: '700', marginTop: 10 }}>Fund Wallet to Continue →</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
+
             <TouchableOpacity 
-              style={[styles.payBtn, (saving || wallet?.balance < 5000) && { backgroundColor: Colors.border }]} 
+              style={[styles.payBtn, (saving || (!adminSettings?.isRegistrationFree && wallet?.balance < (adminSettings?.registrationFee || 5000))) && { backgroundColor: Colors.border }]} 
               onPress={handlePayRegistration} 
-              disabled={saving || wallet?.balance < 5000}
+              disabled={saving || (!adminSettings?.isRegistrationFree && wallet?.balance < (adminSettings?.registrationFee || 5000))}
             >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Pay & Submit Profile</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>{adminSettings?.isRegistrationFree ? 'Complete Registration' : 'Pay & Submit Profile'}</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -442,16 +476,45 @@ export default function ProfileScreen() {
         )}
         
         <View style={{ height: 100 }} />
+
+        {/* Modals */}
+        <SelectionModal
+          visible={showFacultyModal}
+          title="Select Faculty"
+          items={universityData.faculties.map(f => ({ label: f.faculty, value: f.faculty }))}
+          selectedValue={faculty}
+          onSelect={(val: string) => { setFaculty(val); setDepartment(''); }}
+          onClose={() => setShowFacultyModal(false)}
+        />
+        <SelectionModal
+          visible={showDepartmentModal}
+          title="Select Department"
+          items={(universityData.faculties.find(f => f.faculty === faculty)?.departments || []).map(d => ({ label: d, value: d }))}
+          selectedValue={department}
+          onSelect={(val: string) => setDepartment(val)}
+          onClose={() => setShowDepartmentModal(false)}
+        />
+        <SelectionModal
+          visible={showBankModal}
+          title="Select Bank"
+          items={banks.map(b => ({ label: b.name, value: b.code }))}
+          selectedValue={bankCode}
+          onSelect={(val: string, label: string) => { setBankCode(val); setBankName(label); }}
+          onClose={() => setShowBankModal(false)}
+        />
       </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
   // Standard Profile View
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refreshUser(); setRefreshing(false); }} />}
-    >
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: Colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView 
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refreshUser(); setRefreshing(false); }} />}
+      >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.avatarWrap}>
@@ -505,8 +568,29 @@ export default function ProfileScreen() {
         ) : (
           <InfoRow label="Email" value={user.email} />
         )}
-        <InfoRow label="Faculty" value={user.faculty || '—'} />
-        <InfoRow label="Department" value={user.department || '—'} />
+        {isEditing ? (
+          <View style={styles.editWrap}>
+            <Text style={styles.label}>Faculty</Text>
+            <TouchableOpacity style={styles.inputSmall} onPress={() => setShowFacultyModal(true)}>
+              <Text style={{ color: faculty ? Colors.textPrimary : Colors.textMuted }}>{faculty || 'Select Faculty'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <InfoRow label="Faculty" value={user.faculty || '—'} />
+        )}
+        {isEditing ? (
+          <View style={styles.editWrap}>
+            <Text style={styles.label}>Department</Text>
+            <TouchableOpacity style={styles.inputSmall} onPress={() => {
+              if (!faculty) { Alert.alert('Select Faculty', 'Please select a faculty first.'); return; }
+              setShowDepartmentModal(true);
+            }}>
+              <Text style={{ color: department ? Colors.textPrimary : Colors.textMuted }}>{department || 'Select Department'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <InfoRow label="Department" value={user.department || '—'} />
+        )}
         {isEditing ? (
           <View style={styles.editWrap}>
             <Text style={styles.label}>Level</Text>
@@ -525,6 +609,17 @@ export default function ProfileScreen() {
             <InfoRow label="Phone" value={user.phone || '—'} />
           )
         )}
+        {user.role === 'verified_tutor' && (
+          isEditing ? (
+            <View style={styles.editWrap}>
+              <Text style={styles.label}>Hourly Rate (₦)</Text>
+              <TextInput style={styles.inputSmall} value={hourlyRate} onChangeText={setHourlyRate} placeholder="e.g. 1000" keyboardType="numeric" />
+              <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 2 }}>Max: ₦{adminSettings?.maxHourlyRate?.toLocaleString() || '1,500'}</Text>
+            </View>
+          ) : (
+            <InfoRow label="Hourly Rate" value={`₦${user.hourlyRate?.toLocaleString() || '0'}/hr`} />
+          )
+        )}
       </View>
 
       {/* Teaching Profile */}
@@ -534,7 +629,13 @@ export default function ProfileScreen() {
           
           <Text style={styles.subLabel}>Courses & Subjects</Text>
           {isEditing ? (
-            <TextInput style={styles.input} value={courses} onChangeText={setCourses} placeholder="e.g. MATH101, COEN201" />
+            user.role === 'tutee' ? (
+              <TextInput style={styles.input} value={courses} onChangeText={setCourses} placeholder="e.g. MATH101, COEN201" />
+            ) : (
+              <View style={[styles.input, { backgroundColor: '#F0F0F0', justifyContent: 'center' }]}>
+                <Text style={{ color: Colors.textMuted }}>{courses || 'Manage via "Apply for New Course"'}</Text>
+              </View>
+            )
           ) : (
             user.courses?.length > 0 ? (
               <View style={styles.tagRow}>
@@ -582,12 +683,63 @@ export default function ProfileScreen() {
       <View style={styles.menuBox}>
         <MenuBtn icon="wallet" label="Wallet" onPress={() => router.push('/wallet')} />
         <MenuBtn icon="calendar" label="My Sessions" onPress={() => router.push('/(tabs)/sessions')} />
+        {(user.role === 'tutor' || user.role === 'verified_tutor') && (
+          <MenuBtn icon="time" label="Manage Availability" onPress={() => router.push('/availability')} />
+        )}
         <MenuBtn icon="lock-closed" label="Security (PIN)" onPress={() => Alert.alert('Security', 'PIN can be changed in settings.')} />
+        <MenuBtn icon="headset" label="Contact Support" onPress={() => setShowSupportModal(true)} />
         <MenuBtn icon="log-out" label="Log Out" onPress={handleLogout} isDanger />
       </View>
 
       <View style={{ height: 60 }} />
     </ScrollView>
+    
+    <Modal visible={showSupportModal} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.supportModalBox}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800' }}>Contact Support</Text>
+            <TouchableOpacity onPress={() => setShowSupportModal(false)}>
+              <Ionicons name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+            multiline
+            placeholder="Describe your issue..."
+            value={supportMsg}
+            onChangeText={setSupportMsg}
+          />
+          <TouchableOpacity 
+            style={[styles.payBtn, { marginTop: 15 }]} 
+            onPress={handleContactSupport}
+            disabled={sendingSupport}
+          >
+            {sendingSupport ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Send Message</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Selection Modals for Editing */}
+    <SelectionModal
+      visible={showFacultyModal}
+      title="Select Faculty"
+      items={universityData.faculties.map(f => ({ label: f.faculty, value: f.faculty }))}
+      selectedValue={faculty}
+      onSelect={(val: string) => { setFaculty(val); setDepartment(''); }}
+      onClose={() => setShowFacultyModal(false)}
+    />
+    <SelectionModal
+      visible={showDepartmentModal}
+      title="Select Department"
+      items={(universityData.faculties.find(f => f.faculty === faculty)?.departments || []).map(d => ({ label: d, value: d }))}
+      selectedValue={department}
+      onSelect={(val: string) => setDepartment(val)}
+      onClose={() => setShowDepartmentModal(false)}
+    />
+    
+    </KeyboardAvoidingView>
   );
 }
 
@@ -722,5 +874,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFF', borderRadius: Radius.md, padding: 10, 
     borderWidth: 1, borderColor: Colors.border, fontSize: 13, marginTop: 4 
   },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  supportModalBox: { backgroundColor: '#fff', borderRadius: Radius.lg, padding: 20 },
 });
+
+function SelectionModal({ visible, title, items, selectedValue, onSelect, onClose }: any) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: Radius.lg, maxHeight: '80%', padding: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: Colors.textPrimary }}>{title}</Text>
+            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={24} color={Colors.textPrimary} /></TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {items.map((item: any, index: number) => (
+              <TouchableOpacity key={index} style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => { onSelect(item.value, item.label); onClose(); }}>
+                <Text style={{ color: selectedValue === item.value ? Colors.primary : Colors.textPrimary, fontWeight: selectedValue === item.value ? '700' : '500', fontSize: 16 }}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            {items.length === 0 && (
+              <Text style={{ textAlign: 'center', color: Colors.textMuted, marginVertical: 20 }}>No items found</Text>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 

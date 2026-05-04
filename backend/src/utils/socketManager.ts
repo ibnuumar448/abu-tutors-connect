@@ -61,3 +61,10 @@ export const emitBroadcast = (title: string, message: string) => {
         io.emit('admin_broadcast', { title, message, date: new Date() });
     }
 };
+
+// Emit real-time session update to a specific user
+export const emitSessionUpdate = (userId: string, sessionData: any) => {
+    if (io) {
+        io.to(userId).emit('session_update', sessionData);
+    }
+};

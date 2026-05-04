@@ -7,7 +7,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { userApi } from '../../services/api';
+import { userApi, notificationApi } from '../../services/api';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/Colors';
 import { getImageUrl } from '../../utils/image';
 
@@ -16,6 +16,7 @@ export default function HomeScreen() {
   const [tutors, setTutors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const POPULAR_COURSES = ['MATH101', 'COEN201', 'PHYS201', 'STAT101', 'CHEM101', 'EEE301'];
 
@@ -27,27 +28,46 @@ export default function HomeScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { fetchTutors(); }, []);
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await notificationApi.getNotifications();
+      const unread = res.data.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch {}
+  };
+
+  useEffect(() => { 
+    fetchTutors(); 
+    fetchUnreadCount();
+  }, []);
 
   const tuteePhoto = user?.documents?.profilePicture;
 
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTutors(); }} tintColor={Colors.primary} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTutors(); fetchUnreadCount(); }} tintColor={Colors.primary} />}
     >
       {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0]} 👋</Text>
-          <Text style={styles.subGreeting}>Find your perfect tutor today</Text>
+          <Text style={styles.subGreeting}>
+            {user?.role === 'tutor' || user?.role === 'verified_tutor' ? 'Manage your sessions and earnings' : 'Find your perfect tutor today'}
+          </Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push('/notifications')}
+            onPress={() => {
+              setUnreadCount(0); // optimistically clear
+              router.push('/notifications');
+            }}
           >
             <Ionicons name="notifications" size={20} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={{ position: 'absolute', top: 10, right: 10, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.danger, borderWidth: 1.5, borderColor: Colors.primary }} />
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')}>
             {tuteePhoto ? (
@@ -60,16 +80,18 @@ export default function HomeScreen() {
       </View>
 
       {/* AI Match Banner */}
-      <TouchableOpacity style={styles.aiBanner} onPress={() => router.push('/(tabs)/ai-match')}>
-        <View style={styles.aiBannerContent}>
-          <View style={styles.aiLabel}>
-            <Text style={styles.aiLabelText}>POWERED BY AI</Text>
+      {user?.role === 'tutee' && (
+        <TouchableOpacity style={styles.aiBanner} onPress={() => router.push('/(tabs)/ai-match')}>
+          <View style={styles.aiBannerContent}>
+            <View style={styles.aiLabel}>
+              <Text style={styles.aiLabelText}>POWERED BY AI</Text>
+            </View>
+            <Text style={styles.aiBannerTitle}>✨ Smart Tutor Match</Text>
+            <Text style={styles.aiBannerSubtitle}>Describe your learning needs and get matched instantly</Text>
           </View>
-          <Text style={styles.aiBannerTitle}>✨ Smart Tutor Match</Text>
-          <Text style={styles.aiBannerSubtitle}>Describe your learning needs and get matched instantly</Text>
-        </View>
-        <Ionicons name="sparkles" size={32} color="rgba(255,255,255,0.4)" />
-      </TouchableOpacity>
+          <Ionicons name="sparkles" size={32} color="rgba(255,255,255,0.4)" />
+        </TouchableOpacity>
+      )}
 
       {/* Popular Courses */}
       <View style={styles.section}>
@@ -115,7 +137,17 @@ export default function HomeScreen() {
                 )}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.tutorName}>{tutor.name}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.tutorName}>
+                    {tutor.name} {tutor.role === 'verified_tutor' && <Ionicons name="checkmark-circle" size={14} color={Colors.primary} />}
+                  </Text>
+                  {tutor.averageRating ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="star" size={12} color={Colors.warning} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', marginLeft: 2, color: Colors.textPrimary }}>{tutor.averageRating}</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.tutorFaculty}>{tutor.faculty || 'ABU Tutor'} · {tutor.level}</Text>
                 {tutor.courses?.length > 0 && (
                   <View style={styles.miniTagRow}>
