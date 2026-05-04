@@ -1,11 +1,11 @@
 const testMatch = async () => {
     try {
         console.log('Testing AI Match Mock Endpoint...');
-        const matchRes = await fetch('http://localhost:5000/api/match/request', {
+        const matchRes = await fetch('http://localhost:5001/api/match/request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                course: 'COEN453',
+                course: 'MATH105',
                 topic: 'React State Management',
                 prompt: 'I am struggling to pass state between Next.js components and need a tutor.'
             })
