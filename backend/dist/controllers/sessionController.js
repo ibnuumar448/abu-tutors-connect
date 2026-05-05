@@ -3,13 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.lockSlot = exports.syncSession = exports.reportTuteeNoShow = exports.cancelSession = exports.completeSession = exports.startSession = exports.getUserSessions = exports.createSession = void 0;
+exports.reviewSession = exports.lockSlot = exports.syncSession = exports.reportTuteeNoShow = exports.rescheduleSession = exports.cancelSession = exports.completeSession = exports.startSession = exports.getUserSessions = exports.createSession = void 0;
 const Session_1 = __importDefault(require("../models/Session"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const User_1 = __importDefault(require("../models/User"));
 const Notification_1 = __importDefault(require("../models/Notification"));
 const Escrow_1 = __importDefault(require("../models/Escrow"));
 const logger_1 = __importDefault(require("../utils/logger"));
+const socketManager_1 = require("../utils/socketManager");
 const Settings_1 = __importDefault(require("../models/Settings"));
 const adminController_1 = require("./adminController");
 const SlotLock_1 = __importDefault(require("../models/SlotLock"));
@@ -20,19 +21,29 @@ const createSession = async (req, res) => {
     try {
         const { tutorId, date, time, topic, amount, venue } = req.body;
         const tuteeId = req.user.id;
+        // NEW: Block Tutors from booking other tutors
+        if (req.user.role === 'tutor' || req.user.role === 'verified_tutor') {
+            res.status(403).json({ message: 'Tutor accounts cannot book sessions. Please use a student account.' });
+            return;
+        }
         // 1. Verify Tutor exists
         const tutor = await User_1.default.findById(tutorId);
         if (!tutor || (tutor.role !== 'tutor' && tutor.role !== 'verified_tutor')) {
             res.status(404).json({ message: 'Tutor not found' });
             return;
         }
-        // 1.5 Check if slot is already taken or locked by someone else
+        // 1.5 Check if slot is in the past
+        const bookingDate = new Date(`${date}T${time}`);
+        if (bookingDate < new Date()) {
+            res.status(400).json({ message: 'Cannot book a session for a time that has already passed' });
+            return;
+        }
         const slotTime = `${date}T${time}`;
         const existingSession = await Session_1.default.findOne({
             tutorId,
             date: new Date(date),
             time,
-            status: { $in: ['pending', 'active', 'completed'] }
+            status: { $in: ['pending', 'active'] } // 'completed' sessions should not block future bookings
         });
         if (existingSession) {
             res.status(400).json({ message: 'Tutor is already booked for this slot' });
@@ -45,7 +56,7 @@ const createSession = async (req, res) => {
         }
         // 2. Pricing Enforcement & Validation from System Settings
         const settings = await Settings_1.default.findOne() || await Settings_1.default.create({});
-        let finalizedAmount = 500; // Default for newbie
+        let finalizedAmount = settings.defaultHourlyRate || 500;
         if (tutor.role === 'verified_tutor') {
             const requestedAmount = Number(amount);
             const tutorRate = tutor.hourlyRate || finalizedAmount;
@@ -61,8 +72,8 @@ const createSession = async (req, res) => {
             finalizedAmount = requestedAmount;
         }
         else {
-            // Newbie tutors use the default or a specific newbie rate
-            finalizedAmount = 500;
+            // Newbie tutors use the default system rate
+            finalizedAmount = settings.defaultHourlyRate || 500;
         }
         // 3. Check Tutee Wallet Balance
         const tuteeWallet = await Wallet_1.default.findOne({ userId: tuteeId });
@@ -113,6 +124,8 @@ const createSession = async (req, res) => {
             type: 'session',
             link: '/tutor-dashboard'
         });
+        // 7.5 Removed: Slots are no longer deleted from availability matrix to allow recurring weekly bookings.
+        // Conflicts for the same specific date are already handled by the existingSession check above.
         // 8. Clear Lock if exists
         await SlotLock_1.default.deleteOne({ tutorId, slot: slotTime, tuteeId });
         logger_1.default.info(`Session booked: Tutee ${tuteeId} -> Tutor ${tutorId}`);
@@ -215,6 +228,16 @@ const startSession = async (req, res) => {
         session.status = 'active';
         session.actualStartTime = new Date();
         await session.save();
+        // Notify Tutee
+        await Notification_1.default.create({
+            userId: session.tuteeId,
+            title: 'Session Started',
+            message: `Your session for "${session.topic}" with ${req.user.name} has started.`,
+            type: 'session',
+            link: '/my-sessions'
+        });
+        // Emit Real-time Socket Event to Tutee
+        (0, socketManager_1.emitSessionUpdate)(session.tuteeId.toString(), session);
         logger_1.default.info(`Session ${id} started at ${session.actualStartTime}`);
         res.json({ message: 'Session started successfully', session });
     }
@@ -245,6 +268,7 @@ const completeSession = async (req, res) => {
             return;
         }
         // Verify QR Data OR PIN
+        logger_1.default.info(`Complete Session Check: Received QR: ${qrData}, Expected QR: ${session.completionQRCodeData}`);
         const isQRMatch = qrData && qrData === session.completionQRCodeData;
         const isPinMatch = pin && pin === session.completionPIN;
         if (!isQRMatch && !isPinMatch) {
@@ -256,22 +280,43 @@ const completeSession = async (req, res) => {
         session.escrowStatus = 'released';
         session.actualEndTime = new Date();
         await session.save();
-        // 2. Release Escrow
+        // 2. Release Escrow with 10% Commission
         const escrow = await Escrow_1.default.findOne({ sessionId: session._id, status: 'held' });
         if (escrow) {
+            const settings = await Settings_1.default.findOne() || await Settings_1.default.create({});
+            const commissionPercent = settings.platformCommissionPercent || 10;
+            const commissionAmount = (escrow.amount * commissionPercent) / 100;
+            const tutorEarnings = escrow.amount - commissionAmount;
+            // 2a. Credit Tutor Wallet (90%)
             let tutorWallet = await Wallet_1.default.findOne({ userId: session.tutorId });
             if (!tutorWallet) {
                 tutorWallet = new Wallet_1.default({ userId: session.tutorId, balance: 0, transactions: [] });
             }
-            tutorWallet.balance += escrow.amount;
+            tutorWallet.balance += tutorEarnings;
             tutorWallet.transactions.push({
                 type: 'credit',
-                amount: escrow.amount,
-                description: `Payment for session: ${session.topic}`,
+                amount: tutorEarnings,
+                description: `Earnings for session: ${session.topic}`,
                 date: new Date(),
                 reference: session._id.toString()
             });
             await tutorWallet.save();
+            // 2b. Credit Admin Wallet (10%)
+            const admin = await User_1.default.findOne({ role: 'admin' });
+            if (admin) {
+                let adminWallet = await Wallet_1.default.findOne({ userId: admin._id });
+                if (!adminWallet)
+                    adminWallet = await Wallet_1.default.create({ userId: admin._id, balance: 0, transactions: [] });
+                adminWallet.balance += commissionAmount;
+                adminWallet.transactions.push({
+                    type: 'credit',
+                    amount: commissionAmount,
+                    description: `Commission from session: ${session.topic} (Tutor: ${session.tutorId})`,
+                    date: new Date(),
+                    reference: session._id.toString()
+                });
+                await adminWallet.save();
+            }
             escrow.status = 'released';
             await escrow.save();
         }
@@ -297,6 +342,16 @@ const completeSession = async (req, res) => {
             type: 'payment',
             link: '/wallet'
         });
+        // Notify Tutee
+        await Notification_1.default.create({
+            userId: session.tuteeId,
+            title: 'Session Completed',
+            message: `Your session for "${session.topic}" has been finalized. Thank you for learning!`,
+            type: 'session',
+            link: '/my-sessions'
+        });
+        // Emit Real-time Socket Event to Tutee
+        (0, socketManager_1.emitSessionUpdate)(session.tuteeId.toString(), session);
         logger_1.default.info(`Session ${id} completed and escrow released`);
         res.json({ message: 'Session completed and payment released', session });
     }
@@ -323,6 +378,7 @@ const cancelSession = async (req, res) => {
         }
         // 1. Update Session Status
         session.status = 'cancelled';
+        session.escrowStatus = 'refunded';
         await session.save();
         // 2. Resolve Escrow (Refund to Tutee)
         const escrow = await Escrow_1.default.findOne({ sessionId: session._id, status: 'held' });
@@ -342,6 +398,16 @@ const cancelSession = async (req, res) => {
             escrow.status = 'refunded';
             await escrow.save();
         }
+        // Notify both parties
+        const initiatorId = req.user.id;
+        const otherPartyId = session.tutorId.toString() === initiatorId ? session.tuteeId : session.tutorId;
+        await Notification_1.default.create({
+            userId: otherPartyId,
+            title: 'Session Cancelled',
+            message: `The session for "${session.topic}" has been cancelled. Any held funds have been refunded.`,
+            type: 'session',
+            link: '/my-sessions'
+        });
         logger_1.default.info(`Session ${id} cancelled and refunded`);
         res.json({ message: 'Session cancelled and fully refunded', session });
     }
@@ -351,6 +417,69 @@ const cancelSession = async (req, res) => {
     }
 };
 exports.cancelSession = cancelSession;
+// @desc    Reschedule session
+// @route   POST /api/sessions/:id/reschedule
+// @access  Private
+const rescheduleSession = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { date, time } = req.body;
+        const userId = req.user.id;
+        if (!date || !time) {
+            res.status(400).json({ message: 'New date and time are required' });
+            return;
+        }
+        const session = await Session_1.default.findById(id);
+        if (!session) {
+            res.status(404).json({ message: 'Session not found' });
+            return;
+        }
+        if (session.status !== 'pending') {
+            res.status(400).json({ message: 'Only pending sessions can be rescheduled' });
+            return;
+        }
+        // Verify user ownership
+        if (session.tutorId.toString() !== userId && session.tuteeId.toString() !== userId) {
+            res.status(403).json({ message: 'Unauthorized to reschedule this session' });
+            return;
+        }
+        // Check for tutor availability
+        const existingSession = await Session_1.default.findOne({
+            tutorId: session.tutorId,
+            date: new Date(date),
+            time,
+            status: { $in: ['pending', 'active', 'completed'] },
+            _id: { $ne: session._id } // Exclude current session
+        });
+        if (existingSession) {
+            res.status(400).json({ message: 'Tutor is already booked for this new slot' });
+            return;
+        }
+        // Update session
+        const oldDate = session.date;
+        const oldTime = session.time;
+        session.date = new Date(date);
+        session.time = time;
+        await session.save();
+        // Notify the other party
+        const otherPartyId = session.tutorId.toString() === userId ? session.tuteeId : session.tutorId;
+        const initiatorName = req.user.name || 'The other party';
+        await Notification_1.default.create({
+            userId: otherPartyId,
+            title: 'Session Rescheduled',
+            message: `${initiatorName} has rescheduled your session for "${session.topic}" from ${new Date(oldDate).toLocaleDateString()} ${oldTime} to ${new Date(date).toLocaleDateString()} ${time}.`,
+            type: 'session',
+            link: '/my-sessions'
+        });
+        logger_1.default.info(`Session ${id} rescheduled to ${date} ${time} by ${userId}`);
+        res.json({ message: 'Session rescheduled successfully', session });
+    }
+    catch (error) {
+        logger_1.default.error(`Reschedule Session Error: ${error.message}`);
+        res.status(500).json({ message: 'Server error rescheduling session' });
+    }
+};
+exports.rescheduleSession = rescheduleSession;
 // @desc    Report Tutee No-Show (Tutor receives percentage)
 // @route   POST /api/sessions/:id/no-show
 // @access  Private (Tutor)
@@ -373,27 +502,49 @@ const reportTuteeNoShow = async (req, res) => {
         }
         // 1. Update Session Status
         session.status = 'cancelled';
+        session.escrowStatus = 'released';
         await session.save();
         // 2. Resolve Escrow with partial payout
         const escrow = await Escrow_1.default.findOne({ sessionId: session._id, status: 'held' });
         const settings = await Settings_1.default.findOne() || await Settings_1.default.create({});
         const payoutPercent = settings.noShowPayoutPercent || 30;
         if (escrow) {
-            const tutorPayout = (escrow.amount * payoutPercent) / 100;
-            const tuteeRefund = escrow.amount - tutorPayout;
-            // Credit Tutor
+            const settings = await Settings_1.default.findOne() || await Settings_1.default.create({});
+            const payoutPercent = settings.noShowPayoutPercent || 30;
+            const commissionPercent = settings.platformCommissionPercent || 10;
+            const baseTutorPayout = (escrow.amount * payoutPercent) / 100;
+            const commissionAmount = (baseTutorPayout * commissionPercent) / 100;
+            const netTutorPayout = baseTutorPayout - commissionAmount;
+            const tuteeRefund = escrow.amount - baseTutorPayout;
+            // Credit Tutor (Net)
             let tutorWallet = await Wallet_1.default.findOne({ userId: session.tutorId });
             if (!tutorWallet)
                 tutorWallet = new Wallet_1.default({ userId: session.tutorId, balance: 0 });
-            tutorWallet.balance += tutorPayout;
+            tutorWallet.balance += netTutorPayout;
             tutorWallet.transactions.push({
                 type: 'credit',
-                amount: tutorPayout,
+                amount: netTutorPayout,
                 description: `No-show payout (${payoutPercent}%) for session: ${session.topic}`,
                 date: new Date(),
                 reference: session._id.toString()
             });
             await tutorWallet.save();
+            // Credit Admin (Commission on no-show payout)
+            const admin = await User_1.default.findOne({ role: 'admin' });
+            if (admin) {
+                let adminWallet = await Wallet_1.default.findOne({ userId: admin._id });
+                if (!adminWallet)
+                    adminWallet = await Wallet_1.default.create({ userId: admin._id, balance: 0 });
+                adminWallet.balance += commissionAmount;
+                adminWallet.transactions.push({
+                    type: 'credit',
+                    amount: commissionAmount,
+                    description: `Commission from No-show: ${session.topic}`,
+                    date: new Date(),
+                    reference: session._id.toString()
+                });
+                await adminWallet.save();
+            }
             // Refund Tutee
             let tuteeWallet = await Wallet_1.default.findOne({ userId: session.tuteeId });
             if (tuteeWallet) {
@@ -503,4 +654,74 @@ const lockSlot = async (req, res) => {
     }
 };
 exports.lockSlot = lockSlot;
+// @desc    Submit a review for a completed session (Tutee -> Tutor)
+// @route   POST /api/sessions/:id/review
+// @access  Private (Tutee)
+const reviewSession = async (req, res) => {
+    try {
+        const { rating, reviewText } = req.body;
+        const sessionId = req.params.id;
+        const tuteeId = req.user.id;
+        if (!rating || rating < 1 || rating > 5) {
+            res.status(400).json({ message: 'Rating must be between 1 and 5' });
+            return;
+        }
+        const session = await Session_1.default.findById(sessionId);
+        if (!session) {
+            res.status(404).json({ message: 'Session not found' });
+            return;
+        }
+        if (session.status !== 'completed') {
+            res.status(400).json({ message: 'Can only review completed sessions' });
+            return;
+        }
+        if (session.tuteeId.toString() !== tuteeId) {
+            res.status(403).json({ message: 'Only the tutee can review the tutor for this session' });
+            return;
+        }
+        if (session.tuteeRating) {
+            res.status(400).json({ message: 'Session already reviewed' });
+            return;
+        }
+        // Save review
+        session.tuteeRating = rating;
+        session.tuteeReview = reviewText || '';
+        await session.save();
+        // Recalculate Tutor's Average Rating
+        const tutorId = session.tutorId;
+        const allTutorSessions = await Session_1.default.find({
+            tutorId,
+            status: 'completed',
+            tuteeRating: { $exists: true, $ne: null }
+        });
+        let newAverage = 0;
+        if (allTutorSessions.length > 0) {
+            const sum = allTutorSessions.reduce((acc, curr) => acc + (curr.tuteeRating || 0), 0);
+            newAverage = Number((sum / allTutorSessions.length).toFixed(1));
+        }
+        // Update Tutor and check auto-verification
+        const tutor = await User_1.default.findById(tutorId);
+        if (tutor) {
+            tutor.averageRating = newAverage;
+            // Auto-verify if they have 5+ reviews and average >= 4.0
+            if (tutor.role === 'tutor' && allTutorSessions.length >= 5 && newAverage >= 4.0) {
+                tutor.role = 'verified_tutor';
+                logger_1.default.info(`Tutor ${tutor.email} auto-verified after reaching ${allTutorSessions.length} ratings averaging ${newAverage}.`);
+                await Notification_1.default.create({
+                    userId: tutorId,
+                    title: '🎉 Congratulations! You are Verified!',
+                    message: `You achieved an average rating of ${newAverage} across ${allTutorSessions.length} sessions and have been upgraded to Verified Tutor!`,
+                    type: 'system'
+                });
+            }
+            await tutor.save();
+        }
+        res.json({ message: 'Review submitted successfully', session });
+    }
+    catch (error) {
+        logger_1.default.error(`Review Session Error: ${error.message}`);
+        res.status(500).json({ message: 'Server error submitting review' });
+    }
+};
+exports.reviewSession = reviewSession;
 //# sourceMappingURL=sessionController.js.map

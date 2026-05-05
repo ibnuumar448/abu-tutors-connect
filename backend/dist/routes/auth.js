@@ -9,5 +9,7 @@ const fileUpload_1 = require("../middleware/fileUpload");
 const router = express_1.default.Router();
 router.post("/register", fileUpload_1.upload.single('profilePicture'), authController_1.register);
 router.post("/login", authController_1.login);
+router.post("/forgot-password", authController_1.forgotPassword);
+router.post("/reset-password/:token", authController_1.resetPassword);
 exports.default = router;
 //# sourceMappingURL=auth.js.map

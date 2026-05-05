@@ -17,5 +17,7 @@ router.post('/:id/complete', authMiddleware_1.protect, sessionController_1.compl
 router.post('/:id/cancel', authMiddleware_1.protect, sessionController_1.cancelSession);
 router.post('/:id/no-show', authMiddleware_1.protect, sessionController_1.reportTuteeNoShow);
 router.post('/:id/sync', authMiddleware_1.protect, sessionController_1.syncSession);
+router.post('/:id/reschedule', authMiddleware_1.protect, sessionController_1.rescheduleSession);
+router.post('/:id/review', authMiddleware_1.protect, sessionController_1.reviewSession);
 exports.default = router;
 //# sourceMappingURL=sessionRoutes.js.map

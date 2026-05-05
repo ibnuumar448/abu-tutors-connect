@@ -247,3 +247,4 @@ Please retry in 34.187821144s. [{"@type":"type.googleapis.com/google.rpc.Help","
 2026-05-04 23:21:04:214 [ERROR]: Paystack Init Error: Invalid Email Address Passed
 2026-05-04 23:21:18:2118 [ERROR]: Paystack Init Error: Invalid Email Address Passed
 2026-05-04 23:21:22:2122 [ERROR]: Paystack Init Error: Invalid Email Address Passed
+2026-05-05 10:30:17:3017 [ERROR]: Could not connect to MongoDB: Protocol and host list are required in "mongodb+srv://saminuumar_db_user:IBNumar20M@@abu-tutors-cluster.ewsqsfq.mongodb.net/?appName=abu-tutors-cluster"

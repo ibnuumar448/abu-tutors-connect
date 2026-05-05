@@ -1,8 +1,8 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IMessage extends Document {
-    senderId: mongoose.Schema.Types.ObjectId;
-    receiverId: mongoose.Schema.Types.ObjectId;
+    senderId: mongoose.Types.ObjectId;
+    receiverId: mongoose.Types.ObjectId;
     content: string;
     isRead: boolean;
     createdAt: Date;

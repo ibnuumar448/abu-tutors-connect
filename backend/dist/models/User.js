@@ -36,10 +36,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const UserSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ["tutee", "tutor", "verified_tutor", "admin"], default: "tutee" },
-    registrationNumber: { type: String, unique: true, sparse: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: mongoose_1.Schema.Types.Mixed, required: true },
+    role: { type: String, enum: ['tutee', 'tutor', 'verified_tutor', 'admin'], default: 'tutee' },
+    registrationNumber: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     faculty: { type: String },
     department: { type: String },
     acceptedTerms: { type: Boolean, required: true, default: false },
@@ -49,11 +49,21 @@ const UserSchema = new mongoose_1.Schema({
     teachingLevel: { type: String },
     courses: [{ type: String }],
     areaOfStrength: { type: String },
+    matchingBio: { type: String, default: "" },
     phone: { type: String },
     // Profile verification
     isProfileComplete: { type: Boolean, default: false },
     isApproved: { type: Boolean, default: false },
     registrationPaymentStatus: { type: String, enum: ['pending', 'completed', 'free'], default: 'pending' },
+    applicationStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'needs_revision'], default: 'pending' },
+    adminFeedback: { type: String },
+    courseApplications: [{
+            courses: [{ type: String }],
+            transcript: { type: String },
+            status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+            adminFeedback: { type: String },
+            createdAt: { type: Date, default: Date.now }
+        }],
     documents: {
         admissionLetter: { type: String },
         transcript: { type: String },
@@ -72,6 +82,16 @@ const UserSchema = new mongoose_1.Schema({
         bookingRequests: { type: Boolean, default: true },
         paymentNotifications: { type: Boolean, default: true }
     },
+    bankDetails: {
+        bankName: { type: String },
+        bankCode: { type: String },
+        accountNumber: { type: String },
+        accountName: { type: String },
+        recipientCode: { type: String }
+    },
+    transactionPin: { type: String },
+    resetPasswordToken: { type: String },
+    resetPasswordExpire: { type: Date }
 }, { timestamps: true });
 exports.default = mongoose_1.default.model('User', UserSchema);
 //# sourceMappingURL=User.js.map

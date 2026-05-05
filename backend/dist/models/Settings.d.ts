@@ -6,6 +6,8 @@ export interface ISettings extends Document {
     minSessionsForVerify: number;
     minRatingForVerify: number;
     noShowPayoutPercent: number;
+    platformCommissionPercent: number;
+    defaultHourlyRate: number;
 }
 declare const _default: mongoose.Model<ISettings, {}, {}, {}, mongoose.Document<unknown, {}, ISettings, {}, mongoose.DefaultSchemaOptions> & ISettings & Required<{
     _id: mongoose.Types.ObjectId;

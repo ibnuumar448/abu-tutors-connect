@@ -9,6 +9,8 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 router.get('/pending-tutors', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.getPendingTutors);
 router.put('/tutors/:id/approve', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.approveTutor);
+router.get('/course-applications', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.getPendingCourseApplications);
+router.put('/course-applications/:userId/:appId', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.processCourseApplication);
 router.route('/settings')
     .get(adminController_1.getSettings)
     .put(authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.updateSettings);
@@ -28,5 +30,6 @@ router.get('/sessions', authMiddleware_1.protect, authMiddleware_1.admin, adminC
 router.put('/sessions/:id/override', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.overrideSession);
 // Financial Monitoring
 router.get('/finances', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.getFinancialStats);
+router.post('/reconcile-escrow', authMiddleware_1.protect, authMiddleware_1.admin, adminController_1.reconcileEscrows);
 exports.default = router;
 //# sourceMappingURL=adminRoutes.js.map

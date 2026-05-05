@@ -40,7 +40,9 @@ const SettingsSchema = new mongoose_1.Schema({
     isRegistrationFree: { type: Boolean, default: false },
     minSessionsForVerify: { type: Number, default: 5 },
     minRatingForVerify: { type: Number, default: 3.5 },
-    noShowPayoutPercent: { type: Number, default: 30 }
+    noShowPayoutPercent: { type: Number, default: 30 },
+    platformCommissionPercent: { type: Number, default: 10 },
+    defaultHourlyRate: { type: Number, default: 500 }
 }, { timestamps: true });
 exports.default = mongoose_1.default.model('Settings', SettingsSchema);
 //# sourceMappingURL=Settings.js.map

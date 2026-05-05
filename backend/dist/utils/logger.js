@@ -17,7 +17,7 @@ winston_1.default.addColors(colors);
 const format = winston_1.default.format.combine(winston_1.default.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }), winston_1.default.format.printf((info) => `${info.timestamp} [${info.level.toUpperCase()}]: ${info.message}`));
 // Instantiate the Logger
 const logger = winston_1.default.createLogger({
-    level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+    level: 'debug',
     levels: {
         error: 0,
         warn: 1,
