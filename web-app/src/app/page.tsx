@@ -169,14 +169,25 @@ export default function LandingPage() {
             </div>
             <div className="hidden-mobile" style={{ display: 'flex', justifyContent: 'center' }}>
               <div style={{ 
-                width: '300px', height: '300px', 
-                background: 'rgba(255,255,255,0.1)', 
+                width: '400px', height: '400px', 
+                background: 'rgba(255,255,255,0.15)', 
                 borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '2px dashed rgba(255,255,255,0.3)',
-                position: 'relative'
+                border: '3px dashed rgba(255,255,255,0.4)',
+                position: 'relative',
+                padding: '20px'
               }}>
-                <div style={{ fontSize: '80px' }}>🤖</div>
+                <img 
+                  src="/ai_match_orb.png" 
+                  alt="AI Match Orb" 
+                  style={{ 
+                    width: '90%', 
+                    height: '90%', 
+                    objectFit: 'contain', 
+                    borderRadius: '50%',
+                    boxShadow: '0 0 40px rgba(255,255,255,0.2)'
+                  }} 
+                />
               </div>
             </div>
           </div>
