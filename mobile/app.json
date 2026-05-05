@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ABUTutorsConnect",
-    "slug": "abu-tutors-connect",
+    "slug": "abututors",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -40,6 +40,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fe635923-f1ea-4b5f-979e-9ee4611c10be"
+      }
+    },
+    "owner": "abututorconnects-organization"
   }
 }
