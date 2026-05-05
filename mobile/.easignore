@@ -1,0 +1,19 @@
+# Exclude all dependencies
+node_modules/
+**/node_modules/
+
+# Exclude build artifacts
+.expo/
+dist/
+web-build/
+android/
+ios/
+
+# Exclude temp files
+*.tsbuildinfo
+.DS_Store
+.npm
+.yarn
+npm-debug.*
+yarn-debug.*
+yarn-error.*

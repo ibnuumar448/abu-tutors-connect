@@ -1,0 +1,9 @@
+# Monorepo ignore for EAS
+node_modules/
+**/node_modules/
+backend/
+web-app/
+.git/
+mobile/android/
+mobile/ios/
+mobile/.expo/

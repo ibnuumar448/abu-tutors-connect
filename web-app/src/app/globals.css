@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /**
  * ABUTutorsConnect Design System
  * Extracted from UI design mockups
@@ -85,8 +87,13 @@
   --header-height: 64px;
   --sidebar-width: 280px;
   --tutor-image-height: 180px;
-  --hero-to-section-margin: 40px;
-  --section-header-to-cards: 20px;
+  --hero-to-section-margin: 60px;
+  --section-header-to-cards: 30px;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-blur: 10px;
 }
 /**
  * Base Styles - ABUTutorsConnect
@@ -1251,5 +1258,116 @@ textarea {
   
   .tutor-grid--horizontal {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   Marketing & Landing Page Styles (Manual)
+   ========================================================================== */
+
+.marketing-section {
+  padding: 80px 0;
+  width: 100%;
+}
+
+.marketing-section--alt {
+  background-color: var(--color-primary-light);
+}
+
+.text-center { text-align: center; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+/* Spacing Helpers */
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mb-12 { margin-bottom: 3rem; }
+.mb-16 { margin-bottom: 4rem; }
+.mt-4 { margin-top: 1rem; }
+.pt-4 { padding-top: 1rem; }
+
+/* Font size helpers */
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+.text-4xl { font-size: 2.25rem; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+
+/* Responsive Grids */
+.grid-2, .grid-3 {
+  display: grid;
+  gap: 30px;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .grid-2 { grid-template-columns: repeat(2, 1fr); align-items: center; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .text-md-left { text-align: left; }
+}
+
+@media (max-width: 767px) {
+  .marketing-section { padding: 40px 0; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .hidden-mobile { display: none; }
+}
+
+/* Feature Cards */
+.feature-card {
+  background: white;
+  padding: 40px 30px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+}
+
+.feature-card__icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+  display: block;
+}
+
+/* Footer */
+.app-footer {
+  background: white;
+  border-top: 1px solid var(--color-border);
+  padding: 60px 0 40px;
+  margin-top: 80px;
+}
+
+.app-footer__grid {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .app-footer__grid {
+    grid-template-columns: 2fr repeat(3, 1fr);
+  }
+}
+
+.app-footer__bottom {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 767px) {
+  .app-footer__bottom {
+    flex-direction: column;
+    gap: 20px;
   }
 }
